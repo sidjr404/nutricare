@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import { LogIn, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 // Inicializa a conexão com o seu banco de dados Supabase
@@ -14,40 +13,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("1. Botão de login clicado!");
     setLoading(true);
     setError('');
 
-    // Comunicação real com a Autenticação do Supabase
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
+    console.log("2. Tentando conectar ao Supabase com:", email);
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
 
-    if (error) {
-      setError('Credenciais inválidas. Verifique seu email e senha.');
+      console.log("3. Resposta recebida do Supabase:", { data, error });
+
+      if (error) {
+        console.error("ERRO RETORNADO PELO SUPABASE:", error.message);
+        setError('Credenciais inválidas. Verifique seu email e senha.');
+        setLoading(false);
+      } else {
+        console.log("4. Login bem-sucedido! Iniciando redirecionamento...");
+        window.location.href = '/dashboard';
+      }
+    } catch (err) {
+      console.error("ERRO FATAL NA EXECUÇÃO:", err);
+      setError('Erro interno de conexão.');
       setLoading(false);
-    } else {
-      // Força o navegador a limpar o cache de rotas e ir direto para o painel
-      window.location.href = '/dashboard';
-    }
-  };
-
-    // Comunicação real com a Autenticação do Supabase
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
-
-    if (error) {
-      setError('Credenciais inválidas. Verifique seu email e senha.');
-      setLoading(false);
-    } else {
-      // Sucesso! Redireciona o usuário para o Painel
-      router.push('/dashboard');
     }
   };
 
