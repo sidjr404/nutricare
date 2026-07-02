@@ -31,6 +31,21 @@ export default function LoginPage() {
       setError('Credenciais inválidas. Verifique seu email e senha.');
       setLoading(false);
     } else {
+      // Força o navegador a limpar o cache de rotas e ir direto para o painel
+      window.location.href = '/dashboard';
+    }
+  };
+
+    // Comunicação real com a Autenticação do Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      setError('Credenciais inválidas. Verifique seu email e senha.');
+      setLoading(false);
+    } else {
       // Sucesso! Redireciona o usuário para o Painel
       router.push('/dashboard');
     }
