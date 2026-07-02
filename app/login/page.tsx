@@ -16,30 +16,22 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("1. Botão de login clicado!");
     setLoading(true);
     setError('');
 
-    console.log("2. Tentando conectar ao Supabase com:", email);
-    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
       });
 
-      console.log("3. Resposta recebida do Supabase:", { data, error });
-
       if (error) {
-        console.error("ERRO RETORNADO PELO SUPABASE:", error.message);
         setError('Credenciais inválidas. Verifique seu email e senha.');
         setLoading(false);
       } else {
-        console.log("4. Login bem-sucedido! Iniciando redirecionamento...");
         window.location.href = '/dashboard';
       }
     } catch (err) {
-      console.error("ERRO FATAL NA EXECUÇÃO:", err);
       setError('Erro interno de conexão.');
       setLoading(false);
     }
@@ -68,7 +60,7 @@ export default function LoginPage() {
               placeholder="seu@email.com"
               required
               value={email}
-              className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+              className="w-full p-3 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
@@ -80,7 +72,7 @@ export default function LoginPage() {
               placeholder="••••••••"
               required
               value={password}
-              className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+              className="w-full p-3 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
