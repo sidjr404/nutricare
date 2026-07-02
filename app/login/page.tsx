@@ -1,15 +1,39 @@
 'use client';
 import { useState } from 'react';
-import { LogIn } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
+
+// Inicializa a conexão com o seu banco de dados Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Aqui entra a lógica do supabase.auth.signInWithPassword()
-    console.log("Tentando logar:", email);
+    setLoading(true);
+    setError('');
+
+    // Comunicação real com a Autenticação do Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      setError('Credenciais inválidas. Verifique seu email e senha.');
+      setLoading(false);
+    } else {
+      // Sucesso! Redireciona o usuário para o Painel
+      router.push('/dashboard');
+    }
   };
 
   return (
@@ -22,11 +46,19 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center">
+              {error}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
             <input 
               type="email" 
               placeholder="seu@email.com"
+              required
+              value={email}
               className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -37,6 +69,8 @@ export default function LoginPage() {
             <input 
               type="password" 
               placeholder="••••••••"
+              required
+              value={password}
               className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -44,9 +78,15 @@ export default function LoginPage() {
 
           <button 
             type="submit" 
-            className="w-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-medium p-3 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-md"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-medium p-3 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-md disabled:opacity-70"
           >
-            <LogIn size={18} /> Entrar
+            {loading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <LogIn size={18} />
+            )}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 
