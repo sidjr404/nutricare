@@ -2,6 +2,12 @@
 import { LayoutDashboard, Users, Calendar, MessageSquare, CreditCard, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
+
+// Inicializa a conexão com o seu banco de dados Supabase para poder deslogar
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,6 +19,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { icon: MessageSquare, label: 'Chat', href: '/dashboard/chat' },
     { icon: CreditCard, label: 'Pagamentos', href: '/dashboard/pagamentos' },
   ];
+
+  // Função que faz o logout real no Supabase
+  const handleSignOut = async () => {
+    try {
+      // 1. Encerra a sessão no banco de dados
+      await supabase.auth.signOut();
+      
+      // 2. Limpa o cache local e manda o usuário de volta para a tela de login
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Erro ao tentar sair do sistema:', error);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -48,8 +67,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
         </div>
 
+        {/* Botão Sair com a função de clique adicionada */}
         <div className="p-4 border-t border-slate-100">
-          <button className="flex items-center gap-3 px-4 py-2 text-red-500 font-medium text-sm hover:bg-red-50 rounded-lg w-full transition-colors">
+          <button 
+            onClick={handleSignOut}
+            className="flex items-center gap-3 px-4 py-2 text-red-500 font-medium text-sm hover:bg-red-50 rounded-lg w-full transition-colors"
+          >
             <LogOut size={18} /> Sair
           </button>
         </div>
