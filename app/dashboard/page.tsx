@@ -14,37 +14,29 @@ export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadDashboardData() {
-      // 1. Contar pacientes
-      const { count: countPacientes } = await supabase
-        .from('pacientes')
-        .select('*', { count: 'exact', head: true });
+  async function loadDashboardData() {
+    // Defina a variável aqui dentro
+    const hoje = new Date().toISOString().split('T')[0];
 
-      // 2. Consultas de hoje
-      const hoje = new Date().toISOString().split('T')[0];
-      const { count: countConsultas } = await supabase
-        .from('consultas')
-        .select('*', { count: 'exact', head: true })
-        .gte('data_hora', `${hoje}T00:00:00`)
-        .lte('data_hora', `${hoje}T23:59:59`);
+    const { data: pacientes } = await supabase.from('pacientes').select('id');
+    const { data: consultas } = await supabase.from('consultas').select('id')
+      .gte('data_hora', `${hoje}T00:00:00`)
+      .lte('data_hora', `${hoje}T23:59:59`);
+    
+    const { data: pendencias } = await supabase.from('pagamentos').select('id')
+      .eq('status', 'Pendente');
 
-      // 3. Pendências (ex: pagamentos pendentes)
-      const { count: countPendencias } = await supabase
-        .from('pagamentos')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Pendente');
+    setStats({
+      totalPacientes: pacientes ? pacientes.length : 0,
+      consultasHoje: consultas ? consultas.length : 0,
+      receitaMes: 0,
+      pendencias: pendencias ? pendencias.length : 0
+    });
+    setLoading(false);
+  }
 
-      setStats({
-        totalPacientes: countPacientes || 0,
-        consultasHoje: countConsultas || 0,
-        receitaMes: 0, // Podemos implementar isso depois puxando de pagamentos pagos
-        pendencias: countPendencias || 0
-      });
-      setLoading(false);
-    }
-
-    loadDashboardData();
-  }, [supabase]);
+  loadDashboardData();
+}, [supabase]);
 
   if (loading) return <div className="p-8 text-center">Carregando dashboard...</div>;
 
