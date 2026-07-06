@@ -29,7 +29,16 @@ export default function LoginPage() {
         setError('Credenciais inválidas. Verifique seu email e senha.');
         setLoading(false);
       } else {
-        window.location.href = '/dashboard';
+        // --- AQUI ESTÁ A MÁGICA DO REDIRECIONAMENTO! ---
+        // Se o email digitado for o do administrador, vai para o dashboard
+        if (email.toLowerCase() === 'admin@nutri.com') {
+          window.location.href = '/dashboard';
+        } 
+        // Se for qualquer outro (incluindo o cliente@email.com), vai para a área do paciente
+        else {
+          window.location.href = '/cliente';
+        }
+        // -----------------------------------------------
       }
     } catch (err) {
       setError('Erro interno de conexão.');
