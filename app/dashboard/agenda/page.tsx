@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Bell, Clock, Check, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Bell, Clock, Check, X, Calendar } from 'lucide-react';
 
 export default function AgendaPage() {
   // Inicializamos as variáveis vazias para a Vercel não dar erro de fuso horário
