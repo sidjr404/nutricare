@@ -25,9 +25,9 @@ export default function AgendaPage() {
   const monthNames = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-  const days = Array.from({ length: firstDayOfMonth }, () => null).concat(
-Array.from({ length: daysInMonth }, (_, i) => i + 1)
-  );
+  const emptyDays = Array.from({ length: firstDayOfMonth }, () => null as number | null);
+  const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const days = [...emptyDays, ...monthDays];
 
   // Variáveis para atrelar as consultas sempre ao dia de "hoje"
   const dataDeHoje = new Date();
