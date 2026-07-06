@@ -20,12 +20,17 @@ export default function ClienteDashboardPage() {
         return;
       }
 
-      // 2. Busca a ficha clínica apenas deste usuário
-      const { data: dadosPaciente } = await supabase
+      // 2. Busca a ficha clínica apenas deste usuário (COM O DEDO-DURO)
+      const { data: dadosPaciente, error: erroBanco } = await supabase
         .from('pacientes')
         .select('*')
         .eq('id', user.id)
-        .single(); // Garante que retorne um objeto e não uma array
+        .single(); 
+
+      // 🚨 DEDO-DURO: Analisando o que está dando errado nos bastidores
+      console.log("1. ID do Usuário Logado:", user.id);
+      console.log("2. Erro do Supabase (RLS ou Tipagem):", erroBanco);
+      console.log("3. Dados que chegaram do Banco:", dadosPaciente);
 
       setPaciente(dadosPaciente);
 
@@ -163,9 +168,9 @@ export default function ClienteDashboardPage() {
                     Biotipo: <span className="font-semibold text-slate-700">{paciente?.biotipo || 'Não avaliado'}</span>
                   </p>
                 </div>
-                <button className="w-full mt-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-sm rounded-xl transition-colors border border-slate-200">
+                <Link href="/cliente/perfil" className="w-full mt-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-sm rounded-xl transition-colors border border-slate-200 flex items-center justify-center">
                   Atualizar Dados Físicos
-                </button>
+                </Link>
               </div>
             </div>
             
