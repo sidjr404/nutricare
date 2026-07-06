@@ -1,190 +1,267 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Bell, Clock, Check, X, Calendar } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Calendar as CalendarIcon, Clock, Plus, User, X, Save, Loader2, CheckCircle2, Clock3, XCircle } from 'lucide-react';
 
-export default function AgendaPage() {
-  // Inicializamos as variáveis vazias para a Vercel não dar erro de fuso horário
-  const [currentDate, setCurrentDate] = useState<Date | null>(null); 
-  const [selectedDate, setSelectedDate] = useState<number | null>(null);
-
-  // Assim que a tela carrega, nós puxamos a data atual do computador do usuário
-  useEffect(() => {
-    const hoje = new Date();
-    setCurrentDate(hoje);
-    setSelectedDate(hoje.getDate());
-  }, []);
-
-  // Tela de carregamento rápida enquanto a data é descoberta
-  if (!currentDate || selectedDate === null) {
-    return <div className="p-8 text-slate-500 animate-pulse font-medium">Carregando calendário...</div>;
-  }
-
-  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+export default function AgendaAdminPage() {
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const [consultas, setConsultas] = useState<any[]>([]);
+  const [pacientes, setPacientes] = useState<any[]>([]);
   
-  const monthNames = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-  const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  // Estados do Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Estado do Formulário
+  const [formData, setFormData] = useState({
+    paciente_id: '',
+    tipo: 'Consulta Inicial',
+    data: '',
+    hora: '14:00'
+  });
 
-  const emptyDays = Array.from({ length: firstDayOfMonth }, () => null as number | null);
-  const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const days = [...emptyDays, ...monthDays];
+  // 1. Carregar Consultas e Pacientes
+  const fetchData = async () => {
+    setLoading(true);
+    
+    // Busca consultas futuras e de hoje, ordenadas pela mais próxima
+    const { data: agendaData } = await supabase
+      .from('consultas')
+      .select('id, data_hora, status, tipo, pacientes(nome)')
+      .order('data_hora', { ascending: true });
+      
+    // Busca pacientes para preencher o "Select" do formulário de agendamento
+    const { data: pacientesData } = await supabase
+      .from('pacientes')
+      .select('id, nome')
+      .order('nome', { ascending: true });
 
-  // Variáveis para atrelar as consultas sempre ao dia de "hoje"
-  const dataDeHoje = new Date();
-  const isCurrentMonth = dataDeHoje.getMonth() === currentDate.getMonth() && dataDeHoje.getFullYear() === currentDate.getFullYear();
-  const todayNumber = dataDeHoje.getDate();
+    setConsultas(agendaData || []);
+    setPacientes(pacientesData || []);
+    setLoading(false);
+  };
 
-  const appointments = [
-    { id: 1, name: 'Maria Silva', type: 'Consulta Inicial', time: '09:00', duration: '1 hora', status: 'confirmado', initial: 'M', color: 'bg-purple-500' },
-    { id: 2, name: 'Ana Costa', type: 'Retorno', time: '10:30', duration: '1 hora', status: 'confirmado', initial: 'A', color: 'bg-fuchsia-500' },
-    { id: 3, name: 'Beatriz Lima', type: 'Avaliação Completa', time: '14:00', duration: '1 hora', status: 'pendente', initial: 'B', color: 'bg-yellow-500' },
-    { id: 4, name: 'Carla Santos', type: 'Consulta Inicial', time: '15:30', duration: '1 hora', status: 'confirmado', initial: 'C', color: 'bg-purple-500' },
-  ];
+  useEffect(() => {
+    fetchData();
+  }, [supabase]);
 
-  const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  const handleNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  const handleToday = () => {
-    const today = new Date();
-    setCurrentDate(today);
-    setSelectedDate(today.getDate());
+  // 2. Função para salvar nova consulta
+  const handleAgendar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Combina a data e a hora do formulário para o formato do banco (Timestamp ISO)
+      const dataHoraIso = new Date(`${formData.data}T${formData.hora}:00`).toISOString();
+
+      const { error } = await supabase.from('consultas').insert({
+        paciente_id: formData.paciente_id,
+        tipo: formData.tipo,
+        data_hora: dataHoraIso,
+        status: 'pendente' // Toda consulta nova nasce como pendente
+      });
+
+      if (error) throw error;
+
+      // Sucesso: fecha o modal, limpa o form e recarrega a lista
+      setIsModalOpen(false);
+      setFormData({ paciente_id: '', tipo: 'Consulta Inicial', data: '', hora: '14:00' });
+      fetchData(); 
+
+    } catch (error) {
+      alert('Erro ao agendar consulta. Verifique os dados.');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Funções de formatação de data e hora para exibição
+  const formatarData = (isoString: string) => {
+    return new Date(isoString).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  };
+  const formatarHora = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Ícones e cores dinâmicas para o Status
+  const renderStatus = (status: string) => {
+    switch (status) {
+      case 'confirmado':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-green-100 text-green-700"><CheckCircle2 size={14} /> Confirmado</span>;
+      case 'cancelado':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700"><XCircle size={14} /> Cancelado</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-yellow-100 text-yellow-700"><Clock3 size={14} /> Pendente</span>;
+    }
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-5xl mx-auto pb-10">
+      
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Agenda</h1>
-          <p className="text-slate-500 text-sm">Gerencie suas consultas e compromissos</p>
+          <p className="text-slate-500 text-sm">Gerencie todos os seus atendimentos programados</p>
         </div>
-        <button className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:opacity-90 transition-opacity shadow-md">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm"
+        >
           <Plus size={18} /> Nova Consulta
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Lado Esquerdo: Calendário */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-800 capitalize">
-              {monthNames[currentDate.getMonth()]} de {currentDate.getFullYear()}
-            </h2>
-            <div className="flex items-center gap-2">
-              <button onClick={handleToday} className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1.5 rounded-md hover:bg-purple-100 transition-colors">
-                Hoje
-              </button>
-              <button onClick={handlePrevMonth} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors"><ChevronLeft size={20} /></button>
-              <button onClick={handleNextMonth} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors"><ChevronRight size={20} /></button>
+      {/* Lista de Consultas */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 font-medium">Carregando sua agenda...</div>
+        ) : consultas.length === 0 ? (
+          <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-2">
+              <CalendarIcon size={32} />
             </div>
+            <p className="text-lg font-bold text-slate-700">Agenda livre!</p>
+            <p className="text-sm">Você não tem nenhuma consulta programada.</p>
           </div>
-
-          <div className="grid grid-cols-7 gap-2 mb-2">
-            {weekDays.map(day => (
-              <div key={day} className="text-center text-xs font-semibold text-slate-400 py-2">
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-2">
-            {days.map((day, index) => {
-              const isSelected = day === selectedDate;
-              // A bolinha roxa vai aparecer apenas no dia de "hoje"
-              const hasAppointments = day === todayNumber && isCurrentMonth; 
-              const isToday = day === todayNumber && isCurrentMonth;
-              
-              return (
-                <div 
-                  key={index} 
-                  onClick={() => day && setSelectedDate(day)}
-                  className={`h-24 rounded-xl p-2 relative cursor-pointer transition-all ${
-                    !day ? 'bg-transparent' : 
-                    isSelected ? 'bg-gradient-to-br from-fuchsia-500 to-purple-600 text-white shadow-md scale-105 z-10' : 
-                    'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {day && (
-                    <>
-                      <span className={`font-semibold text-sm ${isToday && !isSelected ? 'text-purple-600' : ''}`}>
-                        {day}
-                      </span>
-                      {hasAppointments && (
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-0.5">
-                          <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-fuchsia-500'}`}></div>
-                          <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-fuchsia-500'}`}></div>
-                          <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-fuchsia-500'}`}></div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-4 mt-6 text-xs text-slate-500 font-medium border-t border-slate-100 pt-4">
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-purple-200"></div> Hoje</div>
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-fuchsia-500"></div> Dia Selecionado</div>
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Com Consultas</div>
-          </div>
-        </div>
-
-        {/* Lado Direito: Lista de Consultas */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 h-[800px] overflow-y-auto">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-6">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Calendar size={18} className="text-purple-500" />
-              Consultas - {selectedDate} de {monthNames[currentDate.getMonth()]}
-            </h3>
-            <span className="text-xs text-slate-400 font-medium">
-              {(selectedDate === todayNumber && isCurrentMonth) ? '4 consultas' : '0 consultas'}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {(selectedDate === todayNumber && isCurrentMonth) ? (
-              appointments.map((apt) => (
-                <div key={apt.id} className={`p-4 rounded-xl border-l-4 flex flex-col gap-3 ${
-                  apt.status === 'confirmado' ? 'bg-green-50/50 border-l-green-500' : 'bg-yellow-50/50 border-l-yellow-400'
-                }`}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full text-white flex items-center justify-center font-bold shadow-sm ${apt.color}`}>
-                        {apt.initial}
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-800 text-sm">{apt.name}</p>
-                        <p className="text-xs text-slate-500">{apt.type}</p>
-                      </div>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50/80 border-b border-slate-100">
+              <tr>
+                <th className="p-5 text-sm font-bold text-slate-600">Paciente</th>
+                <th className="p-5 text-sm font-bold text-slate-600">Data e Horário</th>
+                <th className="p-5 text-sm font-bold text-slate-600">Tipo de Atendimento</th>
+                <th className="p-5 text-sm font-bold text-slate-600 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {consultas.map((c) => (
+                <tr key={c.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="p-5 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-sm border border-purple-100">
+                      {c.pacientes?.nome ? c.pacientes.nome.charAt(0) : '?'}
                     </div>
-                  </div>
+                    <div>
+                      <p className="font-bold text-slate-900">{c.pacientes?.nome || 'Paciente não encontrado'}</p>
+                    </div>
+                  </td>
+                  <td className="p-5">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-slate-800 capitalize">{formatarData(c.data_hora)}</span>
+                      <span className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Clock size={12} /> {formatarHora(c.data_hora)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="p-5 text-sm font-medium text-slate-600">
+                    {c.tipo}
+                  </td>
+                  <td className="p-5 text-right">
+                    {renderStatus(c.status)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-                  <div className="flex items-center gap-4 text-xs font-medium text-slate-500 pl-[52px]">
-                    <span className="flex items-center gap-1.5"><Clock size={14} /> {apt.time} ({apt.duration})</span>
-                    <span className="flex items-center gap-1.5"><Bell size={14} /> Notificação ativa</span>
-                  </div>
-
-                  <div className="flex justify-end gap-2 mt-2">
-                    {apt.status === 'pendente' && (
-                      <button className="bg-green-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 hover:bg-green-600 transition-colors shadow-sm">
-                        <Check size={14} /> Confirmar
-                      </button>
-                    )}
-                    <button className="bg-red-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 hover:bg-red-600 transition-colors shadow-sm">
-                      <X size={14} /> Cancelar
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-slate-400 py-10 flex flex-col items-center gap-2">
-                <Calendar size={32} className="opacity-20" />
-                <p className="text-sm">Nenhuma consulta para este dia.</p>
+      {/* Modal de Agendamento */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden relative">
+            
+            {/* Header do Modal */}
+            <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Agendar Consulta</h2>
+                <p className="text-sm text-slate-500 mt-1">Selecione o paciente e o horário</p>
               </div>
-            )}
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-200 bg-slate-100 text-slate-500 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Formulário */}
+            <form onSubmit={handleAgendar} className="p-6 space-y-5">
+              
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Paciente</label>
+                <select 
+                  required
+                  value={formData.paciente_id}
+                  onChange={(e) => setFormData({...formData, paciente_id: e.target.value})}
+                  className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all shadow-sm"
+                >
+                  <option value="" disabled>Selecione um paciente...</option>
+                  {pacientes.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Tipo de Consulta</label>
+                <select 
+                  required
+                  value={formData.tipo}
+                  onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                  className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all shadow-sm"
+                >
+                  <option value="Consulta Inicial">Consulta Inicial</option>
+                  <option value="Retorno">Retorno</option>
+                  <option value="Avaliação Completa">Avaliação Completa</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Data</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={formData.data}
+                    onChange={(e) => setFormData({...formData, data: e.target.value})}
+                    className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Horário</label>
+                  <input 
+                    type="time" 
+                    required
+                    value={formData.hora}
+                    onChange={(e) => setFormData({...formData, hora: e.target.value})}
+                    className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-6 py-3 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting || !formData.paciente_id}
+                  className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                  {isSubmitting ? 'Agendando...' : 'Confirmar Agenda'}
+                </button>
+              </div>
+            </form>
+
           </div>
         </div>
-      </div>
+      )}
+
     </div>
   );
 }
