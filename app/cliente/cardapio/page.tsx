@@ -1,186 +1,169 @@
 'use client';
-import { useState } from 'react';
-import { UtensilsCrossed, Clock, Flame, Coffee, Sun, Moon, Apple, Info, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Clock, Coffee, Sun, Moon, Apple, Utensils, Info, Loader2, Download } from 'lucide-react';
 
 export default function ClienteCardapioPage() {
-  // Estado para simular se o paciente tem ou não um cardápio (para você testar)
-  const [temCardapio, setTemCardapio] = useState(true);
-  
-  // Estado para controlar qual dia da semana está selecionado
-  const [diaSelecionado, setDiaSelecionado] = useState('Seg');
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const [refeicoes, setRefeicoes] = useState<any[]>([]);
+  const [pacienteNome, setPacienteNome] = useState('');
 
-  const diasDaSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  useEffect(() => {
+    async function carregarCardapio() {
+      // 1. Descobre quem é o paciente logado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
 
-  // Mock de dados do cardápio preenchido
-  const refeicoes = [
-    {
-      id: 1,
-      nome: 'Café da Manhã',
-      horario: '08:00',
-      calorias: '320',
-      icon: Coffee,
-      itens: [
-        '2 Ovos inteiros mexidos (sem óleo)',
-        '1 Fatia de pão de forma integral',
-        '1/2 Mamão papaia (150g)',
-        '1 Xícara de café sem açúcar'
-      ]
-    },
-    {
-      id: 2,
-      nome: 'Lanche da Manhã',
-      horario: '10:30',
-      calorias: '150',
-      icon: Apple,
-      itens: [
-        '1 Maçã média',
-        '30g de Aveia em flocos finos'
-      ]
-    },
-    {
-      id: 3,
-      nome: 'Almoço',
-      horario: '13:00',
-      calorias: '450',
-      icon: Sun,
-      itens: [
-        '150g de Peito de frango grelhado',
-        '100g de Arroz integral cozido',
-        'Salada de folhas verdes à vontade',
-        '1 Colher de sopa de azeite de oliva extra virgem'
-      ]
-    },
-    {
-      id: 4,
-      nome: 'Lanche da Tarde',
-      horario: '16:00',
-      calorias: '200',
-      icon: Coffee,
-      itens: [
-        '1 Pote de Iogurte natural desnatado (170g)',
-        '1 Colher de sopa de chia'
-      ]
-    },
-    {
-      id: 5,
-      nome: 'Jantar',
-      horario: '20:00',
-      calorias: '380',
-      icon: Moon,
-      itens: [
-        '120g de Filé de peixe branco assado',
-        '100g de Batata doce assada',
-        'Brócolis no vapor à vontade'
-      ]
+      // 2. Busca o nome do paciente (para o cabeçalho)
+      const { data: paciente } = await supabase
+        .from('pacientes')
+        .select('nome')
+        .eq('id', user.id)
+        .single();
+        
+      if (paciente) setPacienteNome(paciente.nome);
+
+      // 3. Busca a dieta dele ordenada pelo horário (do mais cedo para o mais tarde)
+      const { data: dietaDados } = await supabase
+        .from('dietas')
+        .select('*')
+        .eq('paciente_id', user.id)
+        .order('horario', { ascending: true });
+
+      setRefeicoes(dietaDados || []);
+      setLoading(false);
     }
-  ];
+
+    carregarCardapio();
+  }, [supabase]);
+
+  // Função para formatar o horário (ex: "08:00:00" para "08:00")
+  const formatarHorario = (horarioStr: string) => {
+    if (!horarioStr) return '--:--';
+    return horarioStr.substring(0, 5); 
+  };
+
+  // Função inteligente que escolhe a cor e o ícone baseado no nome da refeição
+  const getEstiloRefeicao = (titulo: string) => {
+    const nome = titulo.toLowerCase();
+    if (nome.includes('café') || nome.includes('manhã')) {
+      return { icon: Coffee, corTexto: 'text-amber-700', corBg: 'bg-amber-100', corBorda: 'border-amber-200' };
+    }
+    if (nome.includes('almoço')) {
+      return { icon: Sun, corTexto: 'text-orange-700', corBg: 'bg-orange-100', corBorda: 'border-orange-200' };
+    }
+    if (nome.includes('lanche')) {
+      return { icon: Apple, corTexto: 'text-green-700', corBg: 'bg-green-100', corBorda: 'border-green-200' };
+    }
+    if (nome.includes('jantar') || nome.includes('ceia')) {
+      return { icon: Moon, corTexto: 'text-indigo-700', corBg: 'bg-indigo-100', corBorda: 'border-indigo-200' };
+    }
+    // Padrão
+    return { icon: Utensils, corTexto: 'text-purple-700', corBg: 'bg-purple-100', corBorda: 'border-purple-200' };
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400 gap-3">
+        <Loader2 size={40} className="animate-spin text-purple-500" />
+        <p className="font-medium">Preparando seu cardápio...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto pb-12 space-y-8">
       
-      {/* Header com o Botão de Teste (Toggle) */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Meu Cardápio</h1>
-          <p className="text-slate-500 text-sm">Seu plano alimentar personalizado</p>
+      {/* Header do Cardápio */}
+      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+        {/* Detalhe visual de fundo */}
+        <div className="absolute -top-10 -right-10 text-purple-50 opacity-50 pointer-events-none">
+          <Utensils size={200} />
         </div>
         
-        {/* BOTÃO APENAS PARA TESTE DO DESENVOLVEDOR - Você pode remover depois */}
-        <button 
-          onClick={() => setTemCardapio(!temCardapio)}
-          className="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200 transition-colors"
-        >
-          Simular: {temCardapio ? 'Estado Vazio' : 'Cardápio Preenchido'}
+        <div className="relative z-10">
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Meu Cardápio</h1>
+          <p className="text-slate-500">
+            Plano alimentar atualizado para <span className="font-bold text-purple-600">{pacienteNome.split(' ')[0]}</span>.
+          </p>
+        </div>
+
+        <button className="relative z-10 bg-slate-50 text-slate-600 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-colors border border-slate-200">
+          <Download size={18} /> Baixar PDF
         </button>
       </div>
 
-      {!temCardapio ? (
-        /* =========================================
-           ESTADO VAZIO (Baseado na sua imagem)
-           ========================================= */
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center justify-center text-center">
-          <UtensilsCrossed size={64} className="text-slate-300 mb-6" strokeWidth={1.5} />
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Nenhum cardápio disponível</h2>
-          <p className="text-slate-500">
-            Sua nutricionista ainda não criou um cardápio personalizado para você.<br/>
-            Entre em contato para agendar uma consulta!
+      {/* Aviso Importante */}
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex gap-4 items-start">
+        <Info size={24} className="text-blue-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <h3 className="font-bold text-blue-900 mb-1">Dica da Nutri</h3>
+          <p className="text-sm text-blue-800 leading-relaxed">
+            Lembre-se de beber pelo menos 2,5L de água por dia. As opções de substituição estão listadas abaixo de cada refeição. Tente manter os horários para um melhor resultado!
           </p>
         </div>
+      </div>
+
+      {/* Lista de Refeições */}
+      {refeicoes.length === 0 ? (
+        <div className="bg-white rounded-3xl p-16 border border-slate-100 shadow-sm text-center">
+          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+            <Utensils size={40} />
+          </div>
+          <h2 className="text-xl font-bold text-slate-700 mb-2">Nenhum cardápio encontrado</h2>
+          <p className="text-slate-500">Sua nutricionista ainda não cadastrou sua dieta no sistema. Tente novamente mais tarde.</p>
+        </div>
       ) : (
-        /* =========================================
-           ESTADO PREENCHIDO (Design do Cardápio)
-           ========================================= */
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
           
-          {/* Seletor de Dias da Semana */}
-          <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm flex overflow-x-auto">
-            {diasDaSemana.map((dia) => (
-              <button
-                key={dia}
-                onClick={() => setDiaSelecionado(dia)}
-                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                  diaSelecionado === dia 
-                    ? 'bg-purple-600 text-white shadow-md' 
-                    : 'text-slate-500 hover:bg-slate-50'
-                }`}
-              >
-                {dia}
-              </button>
-            ))}
-          </div>
+          {/* Linha do tempo visual (opcional, fica bonito no canto) */}
+          <div className="hidden md:block absolute left-8 top-8 bottom-8 w-0.5 bg-slate-100 z-0"></div>
 
-          {/* Aviso / Meta Diária */}
-          <div className="bg-fuchsia-50 border border-fuchsia-100 p-4 rounded-2xl flex items-start gap-3">
-            <Info className="text-fuchsia-500 flex-shrink-0 mt-0.5" size={20} />
-            <div>
-              <p className="font-bold text-fuchsia-900 text-sm mb-1">Foco na hidratação!</p>
-              <p className="text-fuchsia-800 text-xs">Lembre-se de beber pelo menos 2,5L de água ao longo do dia. O cardápio abaixo foi calculado para uma meta diária de <strong>1500 kcal</strong>.</p>
-            </div>
-          </div>
+          {refeicoes.map((refeicao, index) => {
+            const estilo = getEstiloRefeicao(refeicao.titulo);
+            const Icone = estilo.icon;
 
-          {/* Lista de Refeições */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {refeicoes.map((refeicao) => {
-              const Icone = refeicao.icon;
-              return (
-                <div key={refeicao.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+            return (
+              <div key={index} className="relative z-10 flex flex-col md:flex-row gap-4 md:gap-6 group">
+                
+                {/* Bloco de Horário */}
+                <div className="md:w-32 flex-shrink-0 flex items-center md:items-start md:justify-end md:pt-6 gap-2">
+                  <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 text-slate-600 font-bold text-sm">
+                    <Clock size={16} className="text-slate-400" />
+                    {formatarHorario(refeicao.horario)}
+                  </div>
+                </div>
+
+                {/* Card da Refeição */}
+                <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
                   
-                  {/* Cabeçalho do Card da Refeição */}
-                  <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-purple-600 shadow-sm">
-                        <Icone size={18} />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-800 text-sm">{refeicao.nome}</h3>
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mt-0.5">
-                          <Clock size={12} /> {refeicao.horario}
-                        </div>
-                      </div>
+                  {/* Título da Refeição */}
+                  <div className={`px-6 py-4 border-b border-slate-100 flex items-center gap-3 ${estilo.corBg} bg-opacity-30`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${estilo.corBg} ${estilo.corTexto} border ${estilo.corBorda}`}>
+                      <Icone size={20} />
                     </div>
-                    <div className="bg-orange-100 text-orange-700 px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1">
-                      <Flame size={12} /> {refeicao.calorias} kcal
-                    </div>
+                    <h2 className={`text-lg font-bold ${estilo.corTexto}`}>
+                      {refeicao.titulo}
+                    </h2>
                   </div>
 
-                  {/* Lista de Itens para comer */}
-                  <div className="p-5 flex-1">
-                    <ul className="space-y-3">
-                      {refeicao.itens.map((item, index) => (
-                        <li key={index} className="flex items-start gap-2 text-sm text-slate-700">
-                          <CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5" />
-                          <span className="leading-snug">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Alimentos (Descrição) */}
+                  <div className="p-6">
+                    <div className="prose prose-sm text-slate-600 whitespace-pre-wrap max-w-none">
+                      {/* O whitespace-pre-wrap faz com que as quebras de linha que você digitou no banco sejam respeitadas */}
+                      {refeicao.descricao}
+                    </div>
                   </div>
 
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
+
     </div>
   );
 }
