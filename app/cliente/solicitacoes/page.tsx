@@ -1,162 +1,209 @@
 'use client';
-import { useState } from 'react';
-import { Save, Leaf, AlertCircle, Beef, Milk, Wheat, Carrot, Apple, Cookie, CheckCircle2, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { HeartPulse, AlertCircle, Ban, Save, Loader2, CheckCircle, Info } from 'lucide-react';
 
-export default function ClienteAlterarDietaPage() {
-  // Estados para controlar o que o usuário selecionou
-  const [estiloSelecionado, setEstiloSelecionado] = useState('onivoro');
-  const [restricoes, setRestricoes] = useState<string[]>(['lactose']); // Simulando uma intolerância já marcada
-  
-  // Estado com os alimentos marcados como "consumidos" (verde)
-  const [alimentosPermitidos, setAlimentosPermitidos] = useState<string[]>([
-    'Carne Vermelha', 'Carne Branca (Frango, Peru)', 'Peixes', 'Frutos do Mar', 'Ovos',
-    'Leite', 'Queijos', 'Iogurtes',
-    'Arroz', 'Feijão', 'Lentilha', 'Grão de Bico', 'Aveia', 'Soja e Derivados',
-    'Folhas Verdes (Alface, Espinafre)', 'Crucíferos (Brócolis, Couve-flor)', 'Raízes (Batata, Cenoura)', 'Cogumelos',
-    'Cítricos (Laranja, Limão)', 'Frutas Vermelhas (Morango, Mirtilo)', 'Frutas Tropicais (Banana, Manga)',
-    'Oleaginosas (Castanhas, Amêndoas, Nozes)', 'Sementes (Chia, Linhaça, Gergelim)'
-  ]);
+export default function ClientePreferenciasPage() {
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  const estilosAlimentares = [
-    { id: 'onivoro', titulo: 'Onívoro/Carnívoro', desc: 'Consome todos os tipos de alimentos' },
-    { id: 'flexitariano', titulo: 'Flexitariano', desc: 'Base vegetal, carne ocasionalmente' },
-    { id: 'pescetariano', titulo: 'Pescetariano', desc: 'Vegetariana + peixes e frutos do mar' },
-    { id: 'ovolacto', titulo: 'Ovolactovegetariano', desc: 'Sem carnes, com ovos e laticínios' },
-    { id: 'lacto', titulo: 'Lactovegetariano', desc: 'Sem carnes e ovos, com laticínios' },
-    { id: 'ovo', titulo: 'Ovovegetariano', desc: 'Sem carnes e laticínios, com ovos' },
-    { id: 'estrito', titulo: 'Vegetariano Estrito', desc: 'Nenhum alimento de origem animal' },
-    { id: 'vegano', titulo: 'Vegano', desc: 'Filosofia de vida sem produtos animais' },
-    { id: 'plant', titulo: 'Plant-based', desc: 'Foco em vegetais inteiros' },
-  ];
+  // Estado do formulário
+  const [formData, setFormData] = useState({
+    restricoes: 'Nenhuma',
+    alergias: '',
+    aversoes: ''
+  });
 
-  const intolerancias = ['Intolerante à Lactose', 'Intolerante ao Glúten'];
+  useEffect(() => {
+    async function carregarPreferencias() {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        setUserId(user.id);
+        
+        // Busca as preferências alimentares na tabela
+        const { data: preferencias } = await supabase
+          .from('preferencias_alimentares')
+          .select('*')
+          .eq('paciente_id', user.id)
+          .single();
 
-  const categoriasAlimentos = [
-    { id: 'proteinas', titulo: 'Proteínas Animais', icone: Beef, cor: 'text-red-500', itens: ['Carne Vermelha', 'Carne Branca (Frango, Peru)', 'Peixes', 'Frutos do Mar', 'Ovos'] },
-    { id: 'laticinios', titulo: 'Laticínios', icone: Milk, cor: 'text-blue-500', itens: ['Leite', 'Queijos', 'Iogurtes'] },
-    { id: 'graos', titulo: 'Grãos e Cereais', icone: Wheat, cor: 'text-amber-600', itens: ['Arroz', 'Feijão', 'Lentilha', 'Grão de Bico', 'Aveia', 'Soja e Derivados'] },
-    { id: 'vegetais', titulo: 'Vegetais', icone: Carrot, cor: 'text-green-600', itens: ['Folhas Verdes (Alface, Espinafre)', 'Crucíferos (Brócolis, Couve-flor)', 'Raízes (Batata, Cenoura)', 'Cogumelos'] },
-    { id: 'frutas', titulo: 'Frutas', icone: Apple, cor: 'text-red-400', itens: ['Cítricos (Laranja, Limão)', 'Frutas Vermelhas (Morango, Mirtilo)', 'Frutas Tropicais (Banana, Manga)'] },
-    { id: 'oleaginosas', titulo: 'Oleaginosas e Sementes', icone: Cookie, cor: 'text-orange-500', itens: ['Oleaginosas (Castanhas, Amêndoas, Nozes)', 'Sementes (Chia, Linhaça, Gergelim)'] },
-  ];
+        if (preferencias) {
+          setFormData({
+            restricoes: preferencias.restricoes || 'Nenhuma',
+            alergias: preferencias.alergias || '',
+            aversoes: preferencias.aversoes || ''
+          });
+        }
+      }
+      setLoading(false);
+    }
 
-  // Funções de Toggle (Liga/Desliga)
-  const toggleRestricao = (item: string) => {
-    setRestricoes(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
+    carregarPreferencias();
+  }, [supabase]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const toggleAlimento = (item: string) => {
-    setAlimentosPermitidos(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
+  const handleSalvar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+
+    setSaving(true);
+    setMensagemSucesso(false);
+
+    // Como o gatilho já cria a linha na tabela, fazemos um UPDATE. 
+    // Caso a linha não exista (pacientes antigos), usamos upsert ou checagem.
+    const { data: existe } = await supabase
+      .from('preferencias_alimentares')
+      .select('id')
+      .eq('paciente_id', userId)
+      .single();
+
+    let error;
+
+    if (existe) {
+      const { error: updateError } = await supabase
+        .from('preferencias_alimentares')
+        .update({
+          restricoes: formData.restricoes,
+          alergias: formData.alergias,
+          aversoes: formData.aversoes
+        })
+        .eq('paciente_id', userId);
+      error = updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from('preferencias_alimentares')
+        .insert({
+          paciente_id: userId,
+          restricoes: formData.restricoes,
+          alergias: formData.alergias,
+          aversoes: formData.aversoes
+        });
+      error = insertError;
+    }
+
+    setSaving(false);
+
+    if (!error) {
+      setMensagemSucesso(true);
+      setTimeout(() => setMensagemSucesso(false), 3000);
+    } else {
+      alert('Erro ao salvar suas preferências. Tente novamente.');
+      console.error(error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[60vh] text-slate-400">
+        <Loader2 size={32} className="animate-spin text-purple-500" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-10">
+    <div className="max-w-4xl mx-auto pb-10 space-y-8">
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Preferências Alimentares</h1>
+        <p className="text-slate-500 text-sm">
+          Conte para a nutricionista o que você gosta de comer, suas restrições e alergias para montarmos o cardápio perfeito.
+        </p>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex gap-4 items-start">
+        <Info size={24} className="text-blue-500 flex-shrink-0 mt-0.5" />
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Preferências Alimentares</h1>
-          <p className="text-slate-500 text-sm">Selecione os alimentos que você consome para solicitar alteração na dieta</p>
+          <h3 className="font-bold text-blue-900 mb-1">Importante</h3>
+          <p className="text-sm text-blue-800 leading-relaxed">
+            As informações abaixo serão usadas para gerar o seu plano alimentar. Seja o mais detalhista possível nas suas aversões (alimentos que você não come de jeito nenhum) e alergias.
+          </p>
         </div>
-        <button className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white px-5 py-2.5 rounded-lg font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm">
-          <Save size={18} /> Salvar Preferências
-        </button>
       </div>
 
-      <div className="space-y-8">
+      <form onSubmit={handleSalvar} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         
-        {/* Seção 1: Estilo Alimentar */}
-        <section>
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-            <Leaf size={20} className="text-green-500" /> Estilo Alimentar
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {estilosAlimentares.map((estilo) => {
-              const isSelected = estiloSelecionado === estilo.id;
-              return (
-                <div 
-                  key={estilo.id}
-                  onClick={() => setEstiloSelecionado(estilo.id)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                    isSelected ? 'border-purple-500 bg-purple-50 shadow-sm' : 'border-slate-200 bg-white hover:border-purple-300'
-                  }`}
-                >
-                  <h3 className={`font-bold text-sm mb-1 ${isSelected ? 'text-purple-900' : 'text-slate-800'}`}>{estilo.titulo}</h3>
-                  <p className={`text-xs ${isSelected ? 'text-purple-700' : 'text-slate-500'}`}>{estilo.desc}</p>
-                </div>
-              );
-            })}
+        <div className="p-8 space-y-8">
+          
+          {/* Seção 1: Restrições / Estilo de Vida */}
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <HeartPulse size={18} className="text-purple-500" /> Estilo de Dieta / Restrições Médicas
+            </label>
+            <select 
+              name="restricoes"
+              value={formData.restricoes}
+              onChange={handleChange}
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-purple-500 outline-none transition-all cursor-pointer"
+            >
+              <option value="Nenhuma">Nenhuma restrição específica</option>
+              <option value="Vegetariano">Vegetariano</option>
+              <option value="Vegano">Vegano</option>
+              <option value="Intolerante à Lactose">Intolerante à Lactose</option>
+              <option value="Celíaco (Zero Glúten)">Celíaco (Zero Glúten)</option>
+              <option value="Diabético">Diabético</option>
+              <option value="Low Carb">Low Carb</option>
+            </select>
           </div>
-        </section>
 
-        {/* Seção 2: Intolerâncias e Restrições */}
-        <section>
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-            <AlertCircle size={20} className="text-orange-500" /> Intolerâncias e Restrições
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {intolerancias.map((item) => {
-              const isRestrito = restricoes.includes(item);
-              return (
-                <div 
-                  key={item}
-                  onClick={() => toggleRestricao(item)}
-                  className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                    isRestrito ? 'border-slate-300 bg-slate-100 text-slate-500' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isRestrito ? 'bg-slate-300 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                    <XCircle size={16} />
-                  </div>
-                  <span className={`text-sm font-medium ${isRestrito ? 'line-through opacity-70' : ''}`}>{item}</span>
-                </div>
-              );
-            })}
+          {/* Seção 2: Alergias Severas */}
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <AlertCircle size={18} className="text-red-500" /> Alergias ou Intolerâncias (Risco à saúde)
+            </label>
+            <textarea 
+              name="alergias"
+              rows={3}
+              value={formData.alergias}
+              onChange={handleChange}
+              placeholder="Ex: Alergia severa a amendoim, camarão, corante amarelo..."
+              className="w-full p-4 bg-red-50/30 border border-red-100 rounded-xl text-slate-700 focus:ring-2 focus:ring-red-400 outline-none transition-all resize-none placeholder-slate-400"
+            />
+            <p className="text-xs text-slate-400 mt-2">Deixe em branco se você não possui nenhuma alergia confirmada.</p>
           </div>
-        </section>
 
-        {/* Seções de Categorias de Alimentos */}
-        {categoriasAlimentos.map((categoria) => {
-          const Icone = categoria.icone;
-          return (
-            <section key={categoria.id}>
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-                <Icone size={20} className={categoria.cor} /> {categoria.titulo}
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {categoria.itens.map((alimento) => {
-                  const isPermitido = alimentosPermitidos.includes(alimento);
-                  return (
-                    <div 
-                      key={alimento}
-                      onClick={() => toggleAlimento(alimento)}
-                      className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                        isPermitido 
-                          ? 'border-green-400 bg-green-50 text-green-800 shadow-sm' 
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      <CheckCircle2 size={18} className={isPermitido ? 'text-green-500' : 'text-slate-300'} />
-                      <span className="text-sm font-medium">{alimento}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+          {/* Seção 3: Aversões (O que não desce de jeito nenhum) */}
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <Ban size={18} className="text-orange-500" /> Aversões e Gostos (O que você não come)
+            </label>
+            <textarea 
+              name="aversoes"
+              rows={4}
+              value={formData.aversoes}
+              onChange={handleChange}
+              placeholder="Ex: Odeio cebola, não suporto fígado, prefiro evitar pimentão..."
+              className="w-full p-4 bg-orange-50/30 border border-orange-100 rounded-xl text-slate-700 focus:ring-2 focus:ring-orange-400 outline-none transition-all resize-none placeholder-slate-400"
+            />
+          </div>
 
-        {/* Seção Final: Observações Adicionais */}
-        <section className="pt-4 border-t border-slate-100">
-          <h2 className="text-sm font-bold text-slate-800 mb-3">Observações Adicionais</h2>
-          <textarea 
-            rows={4}
-            placeholder="Alguma alergia, restrição ou preferência adicional que gostaria de mencionar para a sua próxima dieta?"
-            className="w-full p-4 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none text-slate-700 shadow-sm"
-          ></textarea>
-        </section>
+        </div>
 
-      </div>
+        {/* Rodapé e Botão Salvar */}
+        <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-4">
+          {mensagemSucesso && (
+            <span className="text-green-600 text-sm font-bold flex items-center gap-1 animate-pulse">
+              <CheckCircle size={18} /> Preferências atualizadas!
+            </span>
+          )}
+          <button 
+            type="submit" 
+            disabled={saving}
+            className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white px-8 py-3.5 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+            {saving ? 'Salvando...' : 'Salvar Preferências'}
+          </button>
+        </div>
+
+      </form>
     </div>
   );
 }
