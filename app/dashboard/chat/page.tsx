@@ -1,165 +1,252 @@
 'use client';
-import { useState } from 'react';
-import { Search, MessageSquare, Bot, Send } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Search, Send, User, MessageCircle, Clock, Loader2 } from 'lucide-react';
 
-export default function ChatPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedChat, setSelectedChat] = useState<number | null>(null);
+export default function ChatAdminPage() {
+  const supabase = createClient();
+  const [pacientes, setPacientes] = useState<any[]>([]);
+  const [pacientesFiltrados, setPacientesFiltrados] = useState<any[]>([]);
+  const [busca, setBusca] = useState('');
+  
+  // Estados do Chat Ativo
+  const [pacienteSelecionado, setPacienteSelecionado] = useState<any | null>(null);
+  const [mensagens, setMensagens] = useState<any[]>([]);
+  const [novaMensagem, setNovaMensagem] = useState('');
+  const [isCarregandoMensagens, setIsCarregandoMensagens] = useState(false);
+  const [isEnviando, setIsEnviando] = useState(false);
 
-  // Mock de dados replicando exatamente a sua imagem
-  const chats = [
-    {
-      id: 1,
-      name: 'Maria Silva',
-      lastMessage: 'Gostaria de alterar minha dieta',
-      time: '10 min atrás',
-      unread: 2,
-      needsAttention: true,
-      initial: 'M'
-    },
-    {
-      id: 2,
-      name: 'Ana Costa',
-      lastMessage: 'Obrigada pelas orientações!',
-      time: '2h atrás',
-      unread: 0,
-      needsAttention: false,
-      initial: 'A'
-    },
-    {
-      id: 3,
-      name: 'Beatriz Lima',
-      lastMessage: 'Qual o horário da consulta?',
-      time: '5h atrás',
-      unread: 1,
-      needsAttention: true,
-      initial: 'B'
+  // Referência para rolar a tela para o final automaticamente
+  const fimDasMensagensRef = useRef<HTMLDivElement>(null);
+
+  // 1. Carregar a lista de pacientes na barra lateral
+  useEffect(() => {
+    async function carregarPacientes() {
+      const { data } = await supabase
+        .from('pacientes')
+        .select('id, nome, status')
+        .order('nome', { ascending: true });
+      
+      setPacientes(data || []);
+      setPacientesFiltrados(data || []);
     }
-  ];
+    carregarPacientes();
+  }, [supabase]);
 
-  const filteredChats = chats.filter(chat =>
-    chat.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtro de busca na barra lateral
+  useEffect(() => {
+    const filtrados = pacientes.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
+    setPacientesFiltrados(filtrados);
+  }, [busca, pacientes]);
+
+  // 2. Carregar mensagens e ativar "Tempo Real" quando selecionar um paciente
+  useEffect(() => {
+    if (!pacienteSelecionado) return;
+
+    async function carregarMensagens() {
+      setIsCarregandoMensagens(true);
+      const { data } = await supabase
+        .from('mensagens_chat')
+        .select('*')
+        .eq('paciente_id', pacienteSelecionado.id)
+        .order('criado_em', { ascending: true });
+      
+      setMensagens(data || []);
+      setIsCarregandoMensagens(false);
+      rolarParaBaixo();
+    }
+
+    carregarMensagens();
+
+    // 🔴 O "Pulo do Gato": Escutar mensagens em tempo real no banco
+    const canalRealtime = supabase
+      .channel(`chat_${pacienteSelecionado.id}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'mensagens_chat', 
+        filter: `paciente_id=eq.${pacienteSelecionado.id}` 
+      }, (payload) => {
+        // Quando uma nova mensagem entra no banco, adiciona na tela
+        setMensagens((prev) => [...prev, payload.new]);
+        setTimeout(rolarParaBaixo, 100);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalRealtime);
+    };
+  }, [pacienteSelecionado, supabase]);
+
+  // 3. Enviar uma nova mensagem
+  const handleEnviarMensagem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novaMensagem.trim() || !pacienteSelecionado) return;
+
+    setIsEnviando(true);
+    const textoEnviado = novaMensagem;
+    setNovaMensagem(''); // Limpa o input imediatamente para parecer mais rápido
+
+    const { error } = await supabase.from('mensagens_chat').insert({
+      paciente_id: pacienteSelecionado.id,
+      enviado_por: 'admin',
+      texto: textoEnviado
+    });
+
+    if (error) {
+      alert('Erro ao enviar mensagem.');
+      setNovaMensagem(textoEnviado); // Devolve o texto em caso de erro
+    }
+    setIsEnviando(false);
+  };
+
+  // Função auxiliar para rolar o scroll
+  const rolarParaBaixo = () => {
+    fimDasMensagensRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Formatar hora da mensagem
+  const formatarHora = (dataString: string) => {
+    return new Date(dataString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
-    <div className="max-w-6xl mx-auto h-[calc(100vh-120px)] flex flex-col">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6 flex-shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Chat</h1>
-          <p className="text-slate-500 text-sm">Central de mensagens e chatbot</p>
-        </div>
-        <button className="bg-white text-purple-600 border border-purple-200 px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm">
-          <Bot size={18} /> Configurar Chatbot
-        </button>
+    <div className="max-w-6xl mx-auto pb-10 h-[calc(100vh-100px)] flex flex-col">
+      
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900 mb-1">Central de Mensagens</h1>
+        <p className="text-slate-500 text-sm">Comunique-se diretamente com seus pacientes.</p>
       </div>
 
-      {/* Main Chat Container */}
-      <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex min-h-0">
+      <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex">
         
-        {/* Sidebar (Lista de Conversas) */}
-        <div className="w-80 md:w-96 border-r border-slate-200 flex flex-col bg-white">
-          <div className="p-4 border-b border-slate-100 flex-shrink-0">
-            <h2 className="font-bold text-slate-800 text-lg">Conversas</h2>
-            <p className="text-slate-500 text-sm mb-4">2 precisam de atenção</p>
+        {/* BARRA LATERAL (LISTA DE PACIENTES) */}
+        <div className="w-80 border-r border-slate-100 flex flex-col bg-slate-50/30">
+          <div className="p-4 border-b border-slate-100">
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={16} className="text-slate-400" />
-              </div>
-              <input
-                type="text"
+              <Search className="absolute left-3 top-3 text-slate-400" size={18} />
+              <input 
+                type="text" 
                 placeholder="Buscar paciente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all text-sm text-slate-700 shadow-sm"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm text-slate-700"
               />
             </div>
           </div>
-
+          
           <div className="flex-1 overflow-y-auto">
-            {filteredChats.map((chat) => (
-              <div
-                key={chat.id}
-                onClick={() => setSelectedChat(chat.id)}
-                className={`p-4 border-b border-slate-50 cursor-pointer transition-colors flex gap-3 ${
-                  selectedChat === chat.id ? 'bg-purple-50 hover:bg-purple-50' : 'hover:bg-slate-50'
-                }`}
-              >
-                <div className="relative flex-shrink-0 mt-1">
-                  <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center font-bold text-slate-600 border border-slate-200">
-                    {chat.initial}
-                  </div>
-                  {chat.needsAttention && (
-                    <div className="absolute -top-1 -left-1 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className="font-bold text-slate-800 text-sm truncate">{chat.name}</h3>
-                    {chat.unread > 0 && (
-                      <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                        {chat.unread}
-                      </span>
-                    )}
-                  </div>
-                  <p className={`text-sm truncate ${chat.unread > 0 ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>
-                    {chat.lastMessage}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">{chat.time}</p>
-                </div>
-              </div>
-            ))}
+            {pacientesFiltrados.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 text-sm">Nenhum paciente encontrado.</div>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {pacientesFiltrados.map((p) => (
+                  <li key={p.id}>
+                    <button 
+                      onClick={() => setPacienteSelecionado(p)}
+                      className={`w-full p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left ${pacienteSelecionado?.id === p.id ? 'bg-purple-50/50 border-l-4 border-purple-500' : 'border-l-4 border-transparent'}`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        {p.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-bold truncate ${pacienteSelecionado?.id === p.id ? 'text-purple-900' : 'text-slate-700'}`}>{p.nome}</p>
+                        <p className="text-xs text-slate-500 truncate">Clique para abrir o chat</p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
-        {/* Chat Area (Painel da Direita) */}
-        <div className="flex-1 flex flex-col bg-slate-50">
-          {selectedChat ? (
-            <div className="flex flex-col h-full w-full">
-              {/* Header do Chat Ativo */}
-              <div className="p-4 border-b border-slate-200 bg-white flex items-center gap-3 flex-shrink-0">
-                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center font-bold text-slate-600 border border-slate-200">
-                  {chats.find(c => c.id === selectedChat)?.initial}
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800">{chats.find(c => c.id === selectedChat)?.name}</h3>
-                  <p className="text-xs text-green-500 font-medium">Online</p>
-                </div>
+        {/* ÁREA DO CHAT */}
+        <div className="flex-1 flex flex-col bg-white">
+          {!pacienteSelecionado ? (
+            // Tela de estado vazio
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                <MessageCircle size={40} className="text-slate-300" />
               </div>
-              
-              {/* Área de Mensagens */}
-              <div className="flex-1 p-6 overflow-y-auto flex flex-col justify-end">
-                <div className="bg-white p-3.5 rounded-2xl rounded-bl-none shadow-sm max-w-md self-start border border-slate-200 mb-4">
-                  <p className="text-slate-700 text-sm">{chats.find(c => c.id === selectedChat)?.lastMessage}</p>
-                  <span className="text-[10px] text-slate-400 mt-1 block">{chats.find(c => c.id === selectedChat)?.time}</span>
-                </div>
-              </div>
-              
-              {/* Input de Mensagem */}
-              <div className="p-4 bg-white border-t border-slate-200 flex-shrink-0">
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="Digite sua mensagem..." 
-                    className="flex-1 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm text-slate-700 bg-slate-50" 
-                  />
-                  <button className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white p-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center shadow-md">
-                    <Send size={18} />
-                  </button>
-                </div>
-              </div>
+              <h3 className="text-lg font-bold text-slate-600 mb-1">Nenhum chat selecionado</h3>
+              <p className="text-sm">Selecione um paciente na lista lateral para iniciar uma conversa.</p>
             </div>
           ) : (
-            /* Tela Vazia (Default) */
-            <div className="h-full flex flex-col items-center justify-center text-slate-400">
-              <MessageSquare size={64} className="mb-4 text-slate-300" strokeWidth={1.5} />
-              <p className="text-slate-500 font-medium">Selecione uma conversa para começar</p>
-            </div>
+            // Chat Ativo
+            <>
+              {/* Header do Chat */}
+              <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-white shadow-sm z-10">
+                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
+                  {pacienteSelecionado.nome.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="font-bold text-slate-800">{pacienteSelecionado.nome}</h2>
+                  <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500 block"></span> Paciente Ativo
+                  </p>
+                </div>
+              </div>
+
+              {/* Histórico de Mensagens */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+                {isCarregandoMensagens ? (
+                  <div className="flex items-center justify-center h-full text-slate-400 gap-2">
+                    <Loader2 size={18} className="animate-spin" /> Carregando mensagens...
+                  </div>
+                ) : mensagens.length === 0 ? (
+                  <div className="text-center mt-10">
+                    <p className="text-slate-500 bg-white inline-block px-4 py-2 rounded-xl border border-slate-100 shadow-sm text-sm">
+                      Esta é a sua primeira conversa com {pacienteSelecionado.nome}. Envie um "Olá"!
+                    </p>
+                  </div>
+                ) : (
+                  mensagens.map((msg, index) => {
+                    const isAdmin = msg.enviado_por === 'admin';
+                    return (
+                      <div key={index} className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
+                        <div 
+                          className={`max-w-[70%] px-5 py-3 rounded-2xl shadow-sm text-sm ${
+                            isAdmin 
+                              ? 'bg-purple-600 text-white rounded-br-sm' 
+                              : 'bg-white border border-slate-100 text-slate-800 rounded-bl-sm'
+                          }`}
+                        >
+                          {msg.texto}
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 px-1">
+                          {formatarHora(msg.criado_em)}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+                {/* Elemento invisível para forçar o scroll até o final */}
+                <div ref={fimDasMensagensRef} />
+              </div>
+
+              {/* Input de Envio */}
+              <div className="p-4 bg-white border-t border-slate-100">
+                <form onSubmit={handleEnviarMensagem} className="flex items-center gap-3 relative">
+                  <input 
+                    type="text" 
+                    placeholder="Digite sua mensagem aqui..."
+                    value={novaMensagem}
+                    onChange={(e) => setNovaMensagem(e.target.value)}
+                    className="flex-1 py-3.5 pl-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:bg-white outline-none transition-all shadow-sm text-slate-700"
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={!novaMensagem.trim() || isEnviando}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white p-3.5 rounded-xl transition-colors shadow-sm flex-shrink-0"
+                  >
+                    {isEnviando ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                  </button>
+                </form>
+              </div>
+            </>
           )}
         </div>
-        
       </div>
     </div>
   );
