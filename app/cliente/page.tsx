@@ -1,179 +1,217 @@
 'use client';
-import { Activity, Target, TrendingUp, Apple, Calendar as CalendarIcon, Utensils, MessageSquare, CreditCard, Lightbulb } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Calendar, Target, Activity, ArrowRight, Clock, User, Apple, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
 
-export default function ClienteDashboard() {
-  const weekDays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+export default function ClienteDashboardPage() {
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const [paciente, setPaciente] = useState<any>(null);
+  const [proximaConsulta, setProximaConsulta] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadDadosPaciente() {
+      // 1. Identifica quem é o usuário logado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // 2. Busca a ficha clínica apenas deste usuário
+      const { data: dadosPaciente } = await supabase
+        .from('pacientes')
+        .select('*')
+        .eq('id', user.id)
+        .single(); // Garante que retorne um objeto e não uma array
+
+      setPaciente(dadosPaciente);
+
+      // 3. Busca apenas a consulta futura mais próxima
+      const hoje = new Date().toISOString();
+      const { data: consultaData } = await supabase
+        .from('consultas')
+        .select('*')
+        .eq('paciente_id', user.id)
+        .gte('data_hora', hoje)
+        .order('data_hora', { ascending: true })
+        .limit(1)
+        .single();
+
+      setProximaConsulta(consultaData || null);
+      setLoading(false);
+    }
+
+    loadDadosPaciente();
+  }, [supabase]);
+
+  // Funções para formatar as datas para o visual do card
+  const formatarData = (isoString: string) => {
+    return new Date(isoString).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  };
+  
+  const formatarHora = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400 gap-3">
+        <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+        <p className="font-medium">Carregando seu painel...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-8 pb-10">
       
-      {/* Banner de Boas Vindas */}
-      <div className="bg-gradient-to-r from-fuchsia-500 to-purple-600 rounded-2xl p-8 text-white shadow-md">
-        <h1 className="text-3xl font-bold mb-2">Olá, Maria! 👋</h1>
-        <p className="text-purple-100">Você está indo muito bem! Continue assim.</p>
-      </div>
-
-      {/* Cards de Métricas Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white mb-4">
-            <Activity size={20} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-slate-800">68 kg</h3>
-            <p className="text-xs text-slate-500 font-medium">Peso Atual</p>
-            <p className="text-xs text-purple-600 font-bold mt-1">- 2 kg</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-white mb-4">
-            <Target size={20} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-slate-800">65 kg</h3>
-            <p className="text-xs text-slate-500 font-medium">Meta</p>
-            <p className="text-xs text-purple-600 font-bold mt-1">Faltam 3 kg</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center text-white mb-4">
-            <TrendingUp size={20} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-slate-800">0%</h3>
-            <p className="text-xs text-slate-500 font-medium">Adesão Semanal</p>
-            <p className="text-xs text-purple-600 font-bold mt-1">Comece hoje!</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="w-10 h-10 rounded-lg bg-pink-500 flex items-center justify-center text-white mb-4">
-            <Apple size={20} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-slate-800">0</h3>
-            <p className="text-xs text-slate-500 font-medium">Calorias Hoje</p>
-            <p className="text-xs text-purple-600 font-bold mt-1">0 - 0 gasto</p>
-          </div>
+      {/* Header de Boas-vindas */}
+      <div className="bg-gradient-to-r from-fuchsia-500 to-purple-600 rounded-3xl p-8 text-white shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">
+            Olá, {paciente?.nome ? paciente.nome.split(' ')[0] : 'Paciente'}! 👋
+          </h1>
+          <p className="text-purple-100 text-sm">
+            Bem-vindo(a) ao seu painel NutriGestão. Aqui está o resumo do seu acompanhamento.
+          </p>
         </div>
       </div>
 
-      {/* Gráfico Mockup de Desempenho */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <TrendingUp size={18} className="text-purple-500" /> Desempenho Semanal
-          </h2>
-          <span className="text-xs text-slate-500">Calorias consumidas vs Meta</span>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Mockup visual do gráfico baseado na imagem */}
-        <div className="h-48 bg-gradient-to-b from-purple-50/50 to-transparent border-b-2 border-green-400 relative mb-4 rounded-t-lg">
-          <div className="absolute top-4 left-0 w-full border-t-2 border-purple-400 flex justify-between items-center px-4">
-            {weekDays.map((day, i) => (
-               <div key={i} className="w-2.5 h-2.5 bg-purple-500 rounded-full -mt-[5px]"></div>
-            ))}
-          </div>
-          <div className="absolute bottom-0 left-0 w-full flex justify-between items-center px-4">
-            {weekDays.map((day, i) => (
-               <div key={i} className="w-2.5 h-2.5 bg-green-500 rounded-full mb-[-5px]"></div>
-            ))}
-          </div>
-        </div>
-        <div className="flex justify-between px-4 text-xs text-slate-400 font-medium mb-6">
-          {weekDays.map(day => <span key={day}>{day}</span>)}
-        </div>
+        {/* Coluna Principal (Esquerda - 2/3) */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* Card: Próxima Consulta */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-6 opacity-5">
+              <Calendar size={100} />
+            </div>
+            
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-6">
+              <Calendar size={20} className="text-purple-500" /> Próxima Consulta
+            </h2>
 
-        <div className="flex justify-center gap-4 text-xs font-semibold mb-6">
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Meta</span>
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Consumido</span>
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Líquido</span>
-        </div>
-
-        <div className="grid grid-cols-4 text-center border-t border-slate-100 pt-6 mb-4">
-          <div><p className="text-xs text-slate-500 mb-1">Consumido</p><p className="font-bold text-red-500 text-lg">0 kcal</p></div>
-          <div><p className="text-xs text-slate-500 mb-1">Gasto</p><p className="font-bold text-orange-500 text-lg">0 kcal</p></div>
-          <div><p className="text-xs text-slate-500 mb-1">Líquido</p><p className="font-bold text-green-500 text-lg">0 kcal</p></div>
-          <div><p className="text-xs text-slate-500 mb-1">Adesão</p><p className="font-bold text-red-500 text-lg">0%</p></div>
-        </div>
-
-        <div className="bg-purple-50 border border-purple-100 p-3 rounded-xl flex items-start gap-2 text-xs text-purple-800">
-          <Lightbulb size={16} className="text-yellow-500 flex-shrink-0 mt-0.5" />
-          <p><strong>Dica:</strong> O cálculo de adesão considera calorias líquidas (consumidas - gastas) vs meta. Registre suas atividades no <strong>Registro Diário</strong> para um cálculo mais preciso!</p>
-        </div>
-      </div>
-
-      {/* Seção Inferior: Consulta e Adesão */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-            <CalendarIcon size={18} className="text-purple-500" /> Próxima Consulta
-          </h2>
-          <div className="bg-purple-50 p-4 rounded-xl flex items-center justify-between border border-purple-100">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-purple-600 shadow-sm border border-purple-100">
-                <CalendarIcon size={24} />
+            {proximaConsulta ? (
+              <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                <div className="bg-purple-50 rounded-2xl p-4 text-center min-w-[120px] border border-purple-100">
+                  <p className="text-purple-600 font-bold text-2xl">
+                    {new Date(proximaConsulta.data_hora).getDate()}
+                  </p>
+                  <p className="text-sm font-medium text-purple-800 uppercase tracking-wider">
+                    {new Date(proximaConsulta.data_hora).toLocaleDateString('pt-BR', { month: 'short' })}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 capitalize mb-1">{formatarData(proximaConsulta.data_hora)}</h3>
+                  <p className="text-slate-500 flex items-center gap-2 mb-3">
+                    <Clock size={16} /> às {formatarHora(proximaConsulta.data_hora)}
+                  </p>
+                  <span className="inline-block bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+                    {proximaConsulta.tipo}
+                  </span>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-slate-900">Consulta de Retorno</h3>
-                <p className="text-sm text-slate-600">22 de Abril, 2026</p>
-                <p className="text-sm font-semibold text-purple-600">14:00 (1 hora)</p>
+            ) : (
+              <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <p className="text-slate-500 mb-4">Você não possui consultas agendadas no momento.</p>
+                <Link href="/cliente/chat" className="inline-flex items-center gap-2 text-sm font-bold text-purple-600 hover:text-purple-700 transition-colors">
+                  Falar com a nutricionista <ArrowRight size={16} />
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Grid Inferior: Biometria e Objetivo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Card: Meu Corpo */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
+                <Activity size={16} className="text-blue-500" /> Meu Corpo
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-xs text-slate-400 font-medium mb-1">Peso Atual</p>
+                  <p className="text-xl font-bold text-slate-900">{paciente?.peso_atual || '--'} <span className="text-sm font-medium text-slate-500">kg</span></p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-xs text-slate-400 font-medium mb-1">Altura</p>
+                  <p className="text-xl font-bold text-slate-900">{paciente?.altura || '--'} <span className="text-sm font-medium text-slate-500">cm</span></p>
+                </div>
+                <div className="col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
+                  <p className="text-sm text-blue-700 font-medium">Índice IMC</p>
+                  <p className="text-xl font-bold text-blue-900">{paciente?.imc || '--'}</p>
+                </div>
               </div>
             </div>
-            <button className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:bg-purple-700 transition-colors">
-              Gerenciar Consulta
-            </button>
-          </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-            <TrendingUp size={18} className="text-green-500" /> Dias com Boa Adesão
-          </h2>
-          <div className="flex justify-between gap-2 mb-4">
-            {weekDays.map((day, i) => (
-              <div key={i} className="flex flex-col items-center gap-2 flex-1">
-                <div className="w-full aspect-square bg-slate-100 rounded-lg"></div>
-                <span className="text-[10px] text-slate-400 font-medium">{day}</span>
+            {/* Card: Meu Objetivo */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
+                <Target size={16} className="text-orange-500" /> Meu Objetivo
+              </h2>
+              <div className="flex flex-col h-[calc(100%-2rem)] justify-between">
+                <div>
+                  <p className="text-lg font-bold text-slate-800 mb-2">
+                    {paciente?.objetivo || 'Objetivo não definido'}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Biotipo: <span className="font-semibold text-slate-700">{paciente?.biotipo || 'Não avaliado'}</span>
+                  </p>
+                </div>
+                <button className="w-full mt-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-sm rounded-xl transition-colors border border-slate-200">
+                  Atualizar Dados Físicos
+                </button>
               </div>
-            ))}
-          </div>
-          <p className="text-xs text-slate-500 mb-2">0 de 7 dias com adesão ≥80%</p>
-          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="w-0 h-full bg-green-500"></div>
+            </div>
+            
           </div>
         </div>
+
+        {/* Coluna Lateral (Direita - 1/3) */}
+        <div className="space-y-6">
+          
+          {/* Acesso Rápido */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">Acesso Rápido</h2>
+            <div className="space-y-3">
+              
+              <Link href="/cliente/cardapio" className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-purple-300 hover:bg-purple-50 transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                    <Apple size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800 group-hover:text-purple-700 transition-colors">Meu Cardápio</p>
+                    <p className="text-xs text-slate-500">Dieta da semana</p>
+                  </div>
+                </div>
+                <ArrowRight size={18} className="text-slate-300 group-hover:text-purple-600 transition-colors" />
+              </Link>
+
+              <Link href="/cliente/chat" className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-purple-300 hover:bg-purple-50 transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <MessageSquare size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800 group-hover:text-purple-700 transition-colors">Falar no Chat</p>
+                    <p className="text-xs text-slate-500">Dúvidas rápidas</p>
+                  </div>
+                </div>
+                <ArrowRight size={18} className="text-slate-300 group-hover:text-purple-600 transition-colors" />
+              </Link>
+
+            </div>
+          </div>
+          
+        </div>
+
       </div>
-
-      {/* Acesso Rápido */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:border-purple-200 transition-colors cursor-pointer group">
-          <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 mb-4 group-hover:scale-110 transition-transform">
-            <Utensils size={20} />
-          </div>
-          <h3 className="font-bold text-slate-800 mb-1">Meu Cardápio</h3>
-          <p className="text-xs text-slate-500">Veja seu cardápio semanal personalizado</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:border-blue-200 transition-colors cursor-pointer group">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 mb-4 group-hover:scale-110 transition-transform">
-            <MessageSquare size={20} />
-          </div>
-          <h3 className="font-bold text-slate-800 mb-1">Falar com Nutricionista</h3>
-          <p className="text-xs text-slate-500">Tire suas dúvidas ou solicite alterações</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:border-green-200 transition-colors cursor-pointer group">
-          <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600 mb-4 group-hover:scale-110 transition-transform">
-            <CreditCard size={20} />
-          </div>
-          <h3 className="font-bold text-slate-800 mb-1">Meus Pagamentos</h3>
-          <p className="text-xs text-slate-500">Visualize e gerencie seus planos</p>
-        </div>
-      </div>
-
     </div>
   );
 }
