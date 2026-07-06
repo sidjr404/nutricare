@@ -1,5 +1,5 @@
 'use client';
-import { LayoutDashboard, User, Calendar, History, BookOpen, Apple, FileText, Utensils, MessageSquare, CreditCard, LogOut } from 'lucide-react';
+import { LayoutDashboard, User, Utensils, MessageSquare, ClipboardEdit, CreditCard, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
@@ -11,16 +11,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export default function ClienteLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
+  // Menu enxuto e focado nas funcionalidades reais do paciente
   const menuItems = [
     { icon: LayoutDashboard, label: 'Início', href: '/cliente' },
-    { icon: User, label: 'Perfil', href: '/cliente/perfil' },
-    { icon: Calendar, label: 'Consultas', href: '/cliente/consultas' },
-    { icon: History, label: 'Histórico de Consultas', href: '/cliente/historico' },
-    { icon: BookOpen, label: 'Registro Diário', href: '/cliente/registro' },
-    { icon: Apple, label: 'Preferências Alimentares', href: '/cliente/preferencias' },
-    { icon: FileText, label: 'Documentos Médicos', href: '/cliente/documentos' },
-    { icon: Utensils, label: 'Cardápio', href: '/cliente/cardapio' },
+    { icon: User, label: 'Meu Perfil', href: '/cliente/perfil' },
+    { icon: Utensils, label: 'Cardápio Semanal', href: '/cliente/cardapio' },
     { icon: MessageSquare, label: 'Chat', href: '/cliente/chat' },
+    { icon: ClipboardEdit, label: 'Alterar Dieta', href: '/cliente/solicitacoes' },
     { icon: CreditCard, label: 'Pagamentos', href: '/cliente/pagamentos' },
   ];
 
