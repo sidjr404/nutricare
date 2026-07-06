@@ -30,7 +30,7 @@ export default function ClienteDashboardPage() {
       // 🚨 DEDO-DURO: Analisando o que está dando errado nos bastidores
       console.log("1. ID do Usuário Logado:", user.id);
       console.log("2. Erro do Supabase (RLS ou Tipagem):", erroBanco);
-      console.log("3. Dados que chegaram do Banco:", dadosPaciente);
+      console.log("3. Dados que chegaram do Banco de dados:", dadosPaciente);
 
       setPaciente(dadosPaciente);
 
