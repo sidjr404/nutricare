@@ -12,29 +12,35 @@ export default function ClienteDashboardPage() {
 
   useEffect(() => {
     async function loadDadosPaciente() {
-      // 1. Identifica quem é o usuário logado
-      const { data: { user } } = await supabase.auth.getUser();
+      // 🚨 LOG 1: Saber se a função chegou a ser executada
+      console.log("🚀 1. A função loadDadosPaciente iniciou!");
+
+      const { data: { user }, error: erroAuth } = await supabase.auth.getUser();
       
+      // 🚨 LOG 2: Saber se o Supabase local encontrou alguma sessão ativa
+      console.log("👤 2. Usuário logado encontrado:", user);
+      if (erroAuth) console.log("❌ Erro na busca do usuário:", erroAuth);
+
       if (!user) {
+        console.log("⚠️ 3. Parando a execução: Nenhum usuário está logado no localhost.");
         setLoading(false);
         return;
       }
 
-      // 2. Busca a ficha clínica apenas deste usuário (COM O DEDO-DURO)
+      // Se passar daqui, significa que há um usuário logado
       const { data: dadosPaciente, error: erroBanco } = await supabase
         .from('pacientes')
         .select('*')
         .eq('id', user.id)
         .single(); 
 
-      // 🚨 DEDO-DURO: Analisando o que está dando errado nos bastidores
-      console.log("1. ID do Usuário que está Logado:", user.id);
-      console.log("2. Erro do Supabase (RLS ou Tipagem):", erroBanco);
-      console.log("3. Dados que chegaram do Banco de dados:", dadosPaciente);
+      console.log("🆔 4. ID do Usuário:", user.id);
+      console.log("📊 5. Dados da tabela 'pacientes':", dadosPaciente);
+      if (erroBanco) console.log("❌ 6. Erro do Banco (RLS ou Tabela):", erroBanco);
 
       setPaciente(dadosPaciente);
 
-      // 3. Busca apenas a consulta futura mais próxima
+      // Busca a consulta futura mais próxima
       const hoje = new Date().toISOString();
       const { data: consultaData } = await supabase
         .from('consultas')
