@@ -1,185 +1,193 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
-import { Send, AlertTriangle, Bot, User, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Send, Loader2, MessageSquare, ShieldCheck, User } from 'lucide-react';
 
 export default function ClienteChatPage() {
-  const [inputText, setInputText] = useState('');
-  
-  // Estado inicial das mensagens espelhando a sua imagem
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: 'bot',
-      text: 'Olá! Bem-vinda ao chat da NutriGestão. Como posso ajudar você hoje?',
-      time: '21:44'
-    },
-    {
-      id: 2,
-      sender: 'user',
-      text: 'Gostaria de saber sobre minha próxima consulta',
-      time: '21:49'
-    },
-    {
-      id: 3,
-      sender: 'bot',
-      text: 'Sua próxima consulta está agendada para 22 de Abril às 14:00. É uma Consulta de Retorno. Posso ajudar com mais alguma coisa?',
-      time: '21:50'
-    }
-  ]);
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const [mensagens, setMensagens] = useState<any[]>([]);
+  const [novaMensagem, setNovaMensagem] = useState('');
+  const [isEnviando, setIsEnviando] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  const respostasRapidas = [
-    'Alterar minha dieta',
-    'Agendar consulta',
-    'Dúvidas sobre pagamento',
-    'Horário de atendimento'
-  ];
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Função para rolar o chat para baixo automaticamente
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Referência para rolar a tela automaticamente para a última mensagem
+  const fimDasMensagensRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    async function iniciarChat() {
+      // 1. Identifica o paciente logado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      setUserId(user.id);
 
-  // Função para enviar uma nova mensagem
-  const handleSend = (text: string) => {
-    if (!text.trim()) return;
+      // 2. Busca o histórico de mensagens deste paciente
+      const { data: historico } = await supabase
+        .from('mensagens_chat')
+        .select('*')
+        .eq('paciente_id', user.id)
+        .order('criado_em', { ascending: true });
+      
+      setMensagens(historico || []);
+      setLoading(false);
+      rolarParaBaixo();
+
+      // 3. 🔴 Ativa o "Tempo Real" para escutar respostas da Nutricionista
+      const canalRealtime = supabase
+        .channel('chat_paciente')
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'mensagens_chat', 
+          filter: `paciente_id=eq.${user.id}` 
+        }, (payload) => {
+          setMensagens((prev) => [...prev, payload.new]);
+          setTimeout(rolarParaBaixo, 100);
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(canalRealtime);
+      };
+    }
+
+    iniciarChat();
+  }, [supabase]);
+
+  // Enviar mensagem
+  const handleEnviarMensagem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novaMensagem.trim() || !userId) return;
+
+    setIsEnviando(true);
+    const textoEnviado = novaMensagem;
+    setNovaMensagem(''); // Limpa o campo visualmente para dar sensação de velocidade
+
+    // Salva a mensagem no banco identificando que foi o 'paciente' que enviou
+    const { error } = await supabase.from('mensagens_chat').insert({
+      paciente_id: userId,
+      enviado_por: 'paciente',
+      texto: textoEnviado
+    });
+
+    if (error) {
+      alert('Erro ao enviar mensagem. Verifique sua conexão.');
+      setNovaMensagem(textoEnviado); // Devolve o texto se der erro
+    }
     
-    const now = new Date();
-    const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-    // Adiciona a mensagem do usuário
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      sender: 'user',
-      text: text,
-      time: timeString
-    }]);
-
-    setInputText('');
-
-    // Simula uma resposta do bot após 1 segundo
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        sender: 'bot',
-        text: 'Entendido! Um momento enquanto verifico essa informação para você. Se for algo complexo, vou transferir para a nutricionista.',
-        time: timeString
-      }]);
-    }, 1000);
+    setIsEnviando(false);
   };
 
+  // Função para descer o scroll
+  const rolarParaBaixo = () => {
+    fimDasMensagensRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Formatador de hora
+  const formatarHora = (dataString: string) => {
+    return new Date(dataString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col justify-center items-center h-[60vh] text-slate-400 gap-3">
+        <Loader2 size={32} className="animate-spin text-purple-500" />
+        <p>Carregando conversa...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl mx-auto flex flex-col h-[calc(100vh-100px)]">
+    <div className="max-w-4xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6">
       
-      {/* Header da Página */}
-      <div className="flex-shrink-0 mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">Chat</h1>
-        <p className="text-slate-500 text-sm">Converse com a nutricionista ou assistente virtual</p>
+      {/* Header do Chat */}
+      <div className="bg-white rounded-t-3xl border border-slate-100 p-5 flex items-center gap-4 shadow-sm z-10">
+        <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center border border-purple-200">
+          <ShieldCheck size={24} />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">Atendimento Nutricional</h1>
+          <p className="text-sm text-green-600 font-medium flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            Nutricionista Online
+          </p>
+        </div>
       </div>
 
-      {/* Alerta de Assistente Virtual */}
-      <div className="flex-shrink-0 bg-purple-50 border border-purple-200 p-4 rounded-xl flex items-start gap-3 mb-6">
-        <AlertTriangle size={20} className="text-purple-600 flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-purple-900">
-          <strong>Assistente Virtual Ativo:</strong> Respostas automáticas estão ativas. Para falar diretamente com a nutricionista, mencione que precisa de atendimento personalizado.
-        </p>
-      </div>
-
-      {/* Container Principal do Chat */}
-      <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col min-h-0 overflow-hidden">
+      {/* Área das Mensagens */}
+      <div className="flex-1 bg-slate-50/50 border-x border-slate-100 overflow-y-auto p-6 space-y-6">
         
-        {/* Header Interno do Chat */}
-        <div className="p-4 border-b border-slate-100 flex items-center gap-4 flex-shrink-0">
-          <div className="w-12 h-12 bg-gradient-to-r from-fuchsia-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-sm">
-            <MessageSquare size={20} />
-          </div>
-          <div>
-            <h2 className="font-bold text-slate-800 text-lg leading-tight">NutriGestão</h2>
-            <p className="text-sm text-green-500 font-medium">Online - Respondemos em minutos</p>
-          </div>
+        {/* Mensagem Inicial Padrão */}
+        <div className="text-center pb-4">
+          <p className="inline-block bg-white border border-slate-200 text-slate-500 text-xs px-4 py-2 rounded-full shadow-sm">
+            Este é um canal direto e seguro com sua nutricionista.
+          </p>
         </div>
 
-        {/* Área de Mensagens (Rolável) */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              
-              {/* Avatar */}
-              <div className="flex-shrink-0 mt-auto mb-6">
-                {msg.sender === 'bot' ? (
-                  <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center border border-purple-200">
-                    <Bot size={20} />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center border border-slate-200">
-                    <User size={20} />
-                  </div>
-                )}
-              </div>
-
-              {/* Balão de Mensagem */}
-              <div className={`max-w-[70%] flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`p-4 shadow-sm ${
-                  msg.sender === 'user' 
-                    ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white rounded-2xl rounded-br-sm' 
-                    : 'bg-purple-50 border border-purple-100 text-purple-900 rounded-2xl rounded-bl-sm'
-                }`}>
-                  <p className="text-sm leading-relaxed">{msg.text}</p>
-                </div>
-                <span className="text-[11px] text-slate-400 mt-2 px-1">{msg.time}</span>
-              </div>
-
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Respostas Rápidas & Input (Rodapé) */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
-          
-          <div className="mb-4">
-            <p className="text-xs text-slate-500 mb-2 font-medium px-1">Respostas rápidas:</p>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {respostasRapidas.map((resp, i) => (
-                <button 
-                  key={i}
-                  onClick={() => handleSend(resp)}
-                  className="whitespace-nowrap px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-full text-sm hover:border-purple-300 hover:text-purple-600 transition-colors shadow-sm"
+        {mensagens.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
+            <MessageSquare size={48} className="mb-4" />
+            <p>Nenhuma mensagem ainda.</p>
+            <p className="text-sm">Envie sua dúvida abaixo!</p>
+          </div>
+        ) : (
+          mensagens.map((msg, index) => {
+            const isPaciente = msg.enviado_por === 'paciente';
+            
+            return (
+              <div key={index} className={`flex flex-col ${isPaciente ? 'items-end' : 'items-start'} w-full`}>
+                
+                {/* Balão de Mensagem */}
+                <div 
+                  className={`max-w-[80%] md:max-w-[65%] px-5 py-3.5 rounded-2xl shadow-sm text-[15px] ${
+                    isPaciente 
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white rounded-br-sm' // Mensagem do Paciente
+                      : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm' // Mensagem da Nutri
+                  }`}
                 >
-                  {resp}
-                </button>
-              ))}
-            </div>
-          </div>
+                  {msg.texto}
+                </div>
 
-          <form 
-            onSubmit={(e) => { e.preventDefault(); handleSend(inputText); }}
-            className="flex gap-3"
-          >
-            <input 
-              type="text" 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Digite sua mensagem..." 
-              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none text-slate-700 shadow-sm"
-            />
-            <button 
-              type="submit"
-              disabled={!inputText.trim()}
-              className="bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50"
-            >
-              <Send size={18} /> Enviar
-            </button>
-          </form>
+                {/* Hora da mensagem */}
+                <div className={`text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 ${isPaciente ? 'mr-1' : 'ml-1'}`}>
+                  {!isPaciente && <ShieldCheck size={10} className="text-purple-400" />}
+                  {isPaciente && <User size={10} className="text-slate-300" />}
+                  {formatarHora(msg.criado_em)}
+                </div>
 
-        </div>
+              </div>
+            );
+          })
+        )}
+        
+        {/* Elemento âncora para o scroll descer automaticamente */}
+        <div ref={fimDasMensagensRef} className="h-1" />
       </div>
-      
+
+      {/* Área de Envio (Input) */}
+      <div className="bg-white rounded-b-3xl border border-slate-100 p-4 shadow-sm z-10">
+        <form onSubmit={handleEnviarMensagem} className="flex items-center gap-3 relative">
+          <input 
+            type="text" 
+            placeholder="Escreva sua mensagem aqui..."
+            value={novaMensagem}
+            onChange={(e) => setNovaMensagem(e.target.value)}
+            className="flex-1 py-4 pl-5 pr-14 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-purple-500 focus:bg-white outline-none transition-all shadow-sm text-slate-700"
+          />
+          <button 
+            type="submit" 
+            disabled={!novaMensagem.trim() || isEnviando}
+            className="absolute right-2 top-2 bottom-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white w-12 rounded-xl transition-colors shadow-sm flex items-center justify-center"
+          >
+            {isEnviando ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className="ml-1" />}
+          </button>
+        </form>
+      </div>
+
     </div>
   );
 }
