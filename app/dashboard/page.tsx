@@ -1,57 +1,80 @@
-export default function DashboardPage() {
+'use client';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Users, Calendar, DollarSign, AlertCircle } from 'lucide-react';
+
+export default function DashboardAdmin() {
+  const supabase = createClient();
+  const [stats, setStats] = useState({
+    totalPacientes: 0,
+    consultasHoje: 0,
+    receitaMes: 0,
+    pendencias: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      // 1. Contar pacientes
+      const { count: countPacientes } = await supabase
+        .from('pacientes')
+        .select('*', { count: 'exact', head: true });
+
+      // 2. Consultas de hoje
+      const hoje = new Date().toISOString().split('T')[0];
+      const { count: countConsultas } = await supabase
+        .from('consultas')
+        .select('*', { count: 'exact', head: true })
+        .gte('data_hora', `${hoje}T00:00:00`)
+        .lte('data_hora', `${hoje}T23:59:59`);
+
+      // 3. Pendências (ex: pagamentos pendentes)
+      const { count: countPendencias } = await supabase
+        .from('pagamentos')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Pendente');
+
+      setStats({
+        totalPacientes: countPacientes || 0,
+        consultasHoje: countConsultas || 0,
+        receitaMes: 0, // Podemos implementar isso depois puxando de pagamentos pagos
+        pendencias: countPendencias || 0
+      });
+      setLoading(false);
+    }
+
+    loadDashboardData();
+  }, [supabase]);
+
+  if (loading) return <div className="p-8 text-center">Carregando dashboard...</div>;
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-slate-900 mb-1">Dashboard</h1>
-      <p className="text-slate-500 mb-8">Bem-vinda de volta! Aqui está o resumo de hoje.</p>
+    <div className="max-w-6xl mx-auto space-y-8">
+      <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
       
-      {/* Banner Principal */}
-      <div className="bg-gradient-to-r from-fuchsia-500 to-purple-600 rounded-2xl p-6 text-white flex justify-between items-center mb-8 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-            ⏰
-          </div>
-          <div>
-            <p className="font-semibold text-lg flex items-center gap-2">🔔 Próxima Consulta</p>
-            <p className="text-purple-100">Carla Santos às 14:00 (1 hora)</p>
-          </div>
-        </div>
-        <button className="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-purple-50 transition-colors shadow-sm">
-          Ver Agenda
-        </button>
+      {/* Cards de Resumo */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <DashboardCard title="Pacientes" value={stats.totalPacientes} icon={Users} color="text-blue-600" />
+        <DashboardCard title="Consultas Hoje" value={stats.consultasHoje} icon={Calendar} color="text-purple-600" />
+        <DashboardCard title="Receita (Mensal)" value={`R$ ${stats.receitaMes}`} icon={DollarSign} color="text-green-600" />
+        <DashboardCard title="Pendências" value={stats.pendencias} icon={AlertCircle} color="text-red-600" />
       </div>
 
-      {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-32">
-          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white mb-2">👥</div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800">48</p>
-            <p className="text-xs text-slate-500 font-medium">Pacientes Ativos</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-32">
-          <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center text-white mb-2">📅</div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800">8</p>
-            <p className="text-xs text-slate-500 font-medium">Consultas Hoje</p>
-          </div>
-        </div>
+      {/* Aqui você pode adicionar uma tabela com os últimos pacientes ou consultas */}
+    </div>
+  );
+}
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-32">
-          <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center text-white mb-2">💬</div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800">12</p>
-            <p className="text-xs text-slate-500 font-medium">Mensagens Pendentes</p>
-          </div>
+function DashboardCard({ title, value, icon: Icon, color }: any) {
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+      <div className="flex items-center gap-4">
+        <div className={`p-3 rounded-xl bg-slate-50 ${color}`}>
+          <Icon size={24} />
         </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-32">
-          <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center text-white mb-2">💲</div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800">R$ 12.450</p>
-            <p className="text-xs text-slate-500 font-medium">Receita Mensal</p>
-          </div>
+        <div>
+          <p className="text-sm text-slate-500 font-medium">{title}</p>
+          <p className="text-2xl font-bold text-slate-900">{value}</p>
         </div>
       </div>
     </div>
