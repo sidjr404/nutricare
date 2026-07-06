@@ -99,12 +99,6 @@ export default function LoginPage() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-
-        <div className="mt-6 p-4 bg-slate-50 rounded-lg text-xs text-slate-600 border border-slate-100">
-          <p className="font-semibold text-purple-700 mb-1">Credenciais de teste:</p>
-          <p className="mb-2"><strong>Administrador:</strong><br/>Email: admin@nutri.com<br/>Senha: admin123</p>
-          <p><strong>Cliente:</strong><br/>Email: cliente@email.com<br/>Senha: cliente123</p>
-        </div>
       </div>
     </div>
   );
