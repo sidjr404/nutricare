@@ -4,41 +4,40 @@ import { createClient } from '@/utils/supabase/client';
 import { Calendar, Target, Activity, ArrowRight, Clock, User, Apple, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 
-export default async function ClienteDashboardPage() {
+export default function ClienteDashboardPage() {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log("🔍 Status da Sessão:", session ? "Logado" : "Não logado");
+  
+  // 1. Estado essencial para evitar o erro de SSR (Renderização no Servidor) da Vercel
+  const [isMounted, setIsMounted] = useState(false);
+  
   const [loading, setLoading] = useState(true);
   const [paciente, setPaciente] = useState<any>(null);
   const [proximaConsulta, setProximaConsulta] = useState<any>(null);
 
   useEffect(() => {
-    async function loadDadosPaciente() {
-      // 🚨 LOG 1: Saber se a função chegou a ser executada
-      console.log("🚀 1. A função loadDadosPaciente iniciou!");
+    // 2. Avisa ao Next.js que o componente já carregou no navegador do usuário
+    setIsMounted(true);
 
+    async function loadDadosPaciente() {
+      console.log("🚀 1. Buscando sessão do usuário...");
       const { data: { user }, error: erroAuth } = await supabase.auth.getUser();
       
-      // 🚨 LOG 2: Saber se o Supabase local encontrou alguma sessão ativa
-      console.log("👤 2. Usuário logado encontrado:", user);
-      if (erroAuth) console.log("❌ Erro na busca do usuário:", erroAuth);
-
-      if (!user) {
-        console.log("⚠️ 3. Parando a execução: Nenhum usuário está logado no localhost.");
+      if (erroAuth || !user) {
+        console.log("⚠️ 2. Nenhum usuário logado. (Faça login primeiro!)");
         setLoading(false);
         return;
       }
 
-      // Se passar daqui, significa que há um usuário logado
+      console.log("👤 3. Usuário autenticado encontrado:", user.id);
+
+      // Busca a ficha clínica
       const { data: dadosPaciente, error: erroBanco } = await supabase
         .from('pacientes')
         .select('*')
         .eq('id', user.id)
         .single(); 
 
-      console.log("🆔 4. ID do Usuário:", user.id);
-      console.log("📊 5. Dados da tabela 'pacientes':", dadosPaciente);
-      if (erroBanco) console.log("❌ 6. Erro do Banco (RLS ou Tabela):", erroBanco);
+      if (erroBanco) console.log("❌ 4. Erro ao buscar ficha no banco:", erroBanco);
 
       setPaciente(dadosPaciente);
 
@@ -68,6 +67,11 @@ export default async function ClienteDashboardPage() {
   const formatarHora = (isoString: string) => {
     return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
+
+  // 3. Trava de segurança: Se ainda não montou no navegador, não tenta renderizar nada (Evita o erro da Vercel)
+  if (!isMounted) {
+    return null; 
+  }
 
   if (loading) {
     return (
