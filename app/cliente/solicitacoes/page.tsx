@@ -3,24 +3,11 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { Save, Loader2, CheckCircle, Apple, AlertCircle, Info } from 'lucide-react';
 
-// Categorias de alimentos para o paciente selecionar
 const CATEGORIAS_ALIMENTOS = [
-  { 
-    titulo: 'Proteínas', 
-    itens: ['Frango', 'Carne Bovina', 'Carne Suína', 'Peixes', 'Frutos do Mar', 'Ovos'] 
-  },
-  { 
-    titulo: 'Laticínios', 
-    itens: ['Leite de Vaca', 'Queijos', 'Iogurte', 'Manteiga', 'Zero Lactose'] 
-  },
-  { 
-    titulo: 'Carboidratos', 
-    itens: ['Arroz Branco', 'Arroz Integral', 'Feijão', 'Macarrão', 'Pão Francês', 'Pão Integral', 'Aveia', 'Batata Doce', 'Tapioca'] 
-  },
-  { 
-    titulo: 'Vegetais e Frutas', 
-    itens: ['Salada Crua (Folhas)', 'Legumes Cozidos', 'Frutas Cítricas', 'Frutas Doces (Banana, Maçã)'] 
-  }
+  { titulo: 'Proteínas', itens: ['Frango', 'Carne Bovina', 'Carne Suína', 'Peixes', 'Frutos do Mar', 'Ovos'] },
+  { titulo: 'Laticínios', itens: ['Leite de Vaca', 'Queijos', 'Iogurte', 'Manteiga', 'Zero Lactose'] },
+  { titulo: 'Carboidratos', itens: ['Arroz Branco', 'Arroz Integral', 'Feijão', 'Macarrão', 'Pão Francês', 'Pão Integral', 'Aveia', 'Batata Doce', 'Tapioca'] },
+  { titulo: 'Vegetais e Frutas', itens: ['Salada Crua (Folhas)', 'Legumes Cozidos', 'Frutas Cítricas', 'Frutas Doces (Banana, Maçã)'] }
 ];
 
 export default function ClientePreferenciasPage() {
@@ -30,7 +17,6 @@ export default function ClientePreferenciasPage() {
   const [mensagemSucesso, setMensagemSucesso] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Estados do Formulário
   const [alimentosSelecionados, setAlimentosSelecionados] = useState<string[]>([]);
   const [restricoes, setRestricoes] = useState('');
 
@@ -41,14 +27,14 @@ export default function ClientePreferenciasPage() {
       if (user) {
         setUserId(user.id);
         
+        // CORREÇÃO: Usando maybeSingle() para evitar erros se a tabela estiver vazia
         const { data: pref } = await supabase
           .from('preferencias_alimentares')
           .select('*')
           .eq('paciente_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (pref) {
-          // Converte a string salva no banco de volta para um array de botões selecionados
           if (pref.alimentos_selecionados) {
             setAlimentosSelecionados(pref.alimentos_selecionados.split(', '));
           }
@@ -60,7 +46,6 @@ export default function ClientePreferenciasPage() {
     carregarPreferencias();
   }, [supabase]);
 
-  // Função que liga/desliga a cor do botão quando clicado
   const toggleAlimento = (item: string) => {
     if (alimentosSelecionados.includes(item)) {
       setAlimentosSelecionados(alimentosSelecionados.filter(a => a !== item));
@@ -76,28 +61,29 @@ export default function ClientePreferenciasPage() {
     setSaving(true);
     setMensagemSucesso(false);
 
-    // Junta os botões selecionados numa string só para salvar facilmente no banco
     const dadosParaSalvar = {
       alimentos_selecionados: alimentosSelecionados.join(', '),
       restricoes_medicas: restricoes
     };
 
-    // Verifica se já existe uma linha de preferência para este paciente
+    // CORREÇÃO: Buscando 'paciente_id' em vez de 'id'
     const { data: existe } = await supabase
       .from('preferencias_alimentares')
-      .select('id')
+      .select('paciente_id')
       .eq('paciente_id', userId)
-      .single();
+      .maybeSingle();
 
     let error;
 
     if (existe) {
+      // Se a linha já existe, atualiza
       const { error: updateError } = await supabase
         .from('preferencias_alimentares')
         .update(dadosParaSalvar)
         .eq('paciente_id', userId);
       error = updateError;
     } else {
+      // Se não existe, cria uma nova
       const { error: insertError } = await supabase
         .from('preferencias_alimentares')
         .insert({
@@ -128,8 +114,6 @@ export default function ClientePreferenciasPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-10 space-y-8">
-      
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 mb-2">Preferências Alimentares</h1>
         <p className="text-slate-500 text-sm">
@@ -148,10 +132,7 @@ export default function ClientePreferenciasPage() {
       </div>
 
       <form onSubmit={handleSalvar} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        
         <div className="p-8 space-y-8">
-          
-          {/* Seção 1: Seleção de Alimentos (Tags) */}
           <div className="space-y-6">
             <h2 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
               <Apple size={20} className="text-green-500" /> Meus Hábitos
@@ -185,7 +166,6 @@ export default function ClientePreferenciasPage() {
             </div>
           </div>
 
-          {/* Seção 2: Restrições Médicas */}
           <div className="pt-6">
             <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <AlertCircle size={18} className="text-red-500" /> Restrições Médicas ou Alergias Severas
@@ -198,10 +178,8 @@ export default function ClientePreferenciasPage() {
               className="w-full p-4 bg-red-50/30 border border-red-100 rounded-xl text-slate-700 focus:ring-2 focus:ring-red-400 outline-none transition-all resize-none placeholder-slate-400"
             />
           </div>
-
         </div>
 
-        {/* Rodapé e Botão Salvar */}
         <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-4">
           {mensagemSucesso && (
             <span className="text-green-600 text-sm font-bold flex items-center gap-1 animate-pulse">
@@ -217,7 +195,6 @@ export default function ClientePreferenciasPage() {
             {saving ? 'Salvando...' : 'Salvar Preferências'}
           </button>
         </div>
-
       </form>
     </div>
   );
