@@ -95,7 +95,7 @@ export default function ClientePerfilPage() {
       imc: imcCalculado ? parseFloat(imcCalculado) : null 
     };
 
-    console.log("Enviando estes dados para o banco:", dadosParaSalvar);
+    console.log("Enviando estes dados para o banco de dados:", dadosParaSalvar);
 
     const { error } = await supabase
       .from('pacientes')
