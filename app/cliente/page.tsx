@@ -4,8 +4,10 @@ import { createClient } from '@/utils/supabase/client';
 import { Calendar, Target, Activity, ArrowRight, Clock, User, Apple, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 
-export default function ClienteDashboardPage() {
+export default async function ClienteDashboardPage() {
   const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log("🔍 Status da Sessão:", session ? "Logado" : "Não logado");
   const [loading, setLoading] = useState(true);
   const [paciente, setPaciente] = useState<any>(null);
   const [proximaConsulta, setProximaConsulta] = useState<any>(null);
