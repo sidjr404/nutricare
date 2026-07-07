@@ -81,21 +81,18 @@ export default function ClientePerfilPage() {
     setSavingPerfil(true);
     setMsgPerfil(false);
 
-    const imcCalculado = calcularIMC(formData.peso_atual, formData.altura);
-
-    // Variável com os dados formatados corretamente
+    // Removemos o cálculo de IMC daqui, o banco de dados vai fazer isso sozinho!
     const dadosParaSalvar = {
       telefone: formData.telefone,
       data_nascimento: formData.data_nascimento || null,
       peso_atual: formData.peso_atual ? parseFloat(formData.peso_atual) : null,
       altura: formData.altura ? parseFloat(formData.altura) : null,
       objetivo: formData.objetivo,
-      biotipo: formData.biotipo,
-      // CORREÇÃO AQUI: Garante que o IMC seja enviado como número, e não como texto
-      imc: imcCalculado ? parseFloat(imcCalculado) : null 
+      biotipo: formData.biotipo
+      // A coluna 'imc' foi removida. O Supabase cuida dela.
     };
 
-    console.log("Enviando estes dados para o banco de dados:", dadosParaSalvar);
+    console.log("Enviando estes dados para o banco:", dadosParaSalvar);
 
     const { error } = await supabase
       .from('pacientes')
@@ -112,7 +109,7 @@ export default function ClientePerfilPage() {
       alert('Erro ao atualizar o perfil. Olhe o console.');
     }
   };
-
+  
   // --- LÓGICA DE ALTERAR SENHA ---
   const handleAlterarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
