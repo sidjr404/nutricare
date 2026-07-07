@@ -81,15 +81,15 @@ export default function ClientePerfilPage() {
     setSavingPerfil(true);
     setMsgPerfil(false);
 
-    // Removemos o cálculo de IMC daqui, o banco de dados vai fazer isso sozinho!
     const dadosParaSalvar = {
       telefone: formData.telefone,
       data_nascimento: formData.data_nascimento || null,
       peso_atual: formData.peso_atual ? parseFloat(formData.peso_atual) : null,
       altura: formData.altura ? parseFloat(formData.altura) : null,
-      objetivo: formData.objetivo,
-      biotipo: formData.biotipo
-      // A coluna 'imc' foi removida. O Supabase cuida dela.
+      
+      // CORREÇÃO: Se o formulário enviar "", transformamos em null para o banco aceitar
+      objetivo: formData.objetivo || null,
+      biotipo: formData.biotipo || null
     };
 
     console.log("Enviando estes dados para o banco:", dadosParaSalvar);
@@ -109,7 +109,7 @@ export default function ClientePerfilPage() {
       alert('Erro ao atualizar o perfil. Olhe o console.');
     }
   };
-  
+
   // --- LÓGICA DE ALTERAR SENHA ---
   const handleAlterarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
