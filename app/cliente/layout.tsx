@@ -55,7 +55,7 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
     { href: '/cliente/perfil', icone: User, texto: 'Meu Perfil' },
     { href: '/cliente/cardapio', icone: Utensils, texto: 'Cardápio Semanal' },
     { href: '/cliente/chat', icone: MessageSquare, texto: 'Chat' },
-    { href: '/cliente/preferencias', icone: FileEdit, texto: 'Preferências' },
+    { href: '/cliente/solicitacoes', icone: FileEdit, texto: 'Preferências' },
     { href: '/cliente/pagamentos', icone: CreditCard, texto: 'Pagamentos' },
   ];
 
