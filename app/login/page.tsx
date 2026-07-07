@@ -1,18 +1,17 @@
 'use client';
 import { useState } from 'react';
 import { LogIn, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-
-// Inicializa a conexão com o seu banco de dados Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+// 🚨 CORREÇÃO: Usando o mesmo cliente Supabase do restante do app!
+import { createClient } from '@/utils/supabase/client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Inicializa a conexão com o banco usando a configuração do seu Next.js
+  const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,16 +28,12 @@ export default function LoginPage() {
         setError('Credenciais inválidas. Verifique seu email e senha.');
         setLoading(false);
       } else {
-        // --- AQUI ESTÁ A MÁGICA DO REDIRECIONAMENTO! ---
-        // Se o email digitado for o do administrador, vai para o dashboard
+        // Redirecionamento
         if (email.toLowerCase() === 'admin@nutri.com') {
           window.location.href = '/dashboard';
-        } 
-        // Se for qualquer outro (incluindo o cliente@email.com), vai para a área do paciente
-        else {
+        } else {
           window.location.href = '/cliente';
         }
-        // -----------------------------------------------
       }
     } catch (err) {
       setError('Erro interno de conexão.');
