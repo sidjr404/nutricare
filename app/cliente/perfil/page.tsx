@@ -83,17 +83,23 @@ export default function ClientePerfilPage() {
 
     const imcCalculado = calcularIMC(formData.peso_atual, formData.altura);
 
+    // Variável com os dados formatados corretamente
+    const dadosParaSalvar = {
+      telefone: formData.telefone,
+      data_nascimento: formData.data_nascimento || null,
+      peso_atual: formData.peso_atual ? parseFloat(formData.peso_atual) : null,
+      altura: formData.altura ? parseFloat(formData.altura) : null,
+      objetivo: formData.objetivo,
+      biotipo: formData.biotipo,
+      // CORREÇÃO AQUI: Garante que o IMC seja enviado como número, e não como texto
+      imc: imcCalculado ? parseFloat(imcCalculado) : null 
+    };
+
+    console.log("Enviando estes dados para o banco:", dadosParaSalvar);
+
     const { error } = await supabase
       .from('pacientes')
-      .update({
-        telefone: formData.telefone,
-        data_nascimento: formData.data_nascimento || null,
-        peso_atual: formData.peso_atual ? parseFloat(formData.peso_atual) : null,
-        altura: formData.altura ? parseFloat(formData.altura) : null,
-        objetivo: formData.objetivo,
-        biotipo: formData.biotipo,
-        imc: imcCalculado
-      })
+      .update(dadosParaSalvar)
       .eq('id', userId);
 
     setSavingPerfil(false);
@@ -102,7 +108,8 @@ export default function ClientePerfilPage() {
       setMsgPerfil(true);
       setTimeout(() => setMsgPerfil(false), 3000);
     } else {
-      alert('Erro ao atualizar o perfil. Tente novamente.');
+      console.error("Erro ao salvar:", error);
+      alert('Erro ao atualizar o perfil. Olhe o console.');
     }
   };
 
